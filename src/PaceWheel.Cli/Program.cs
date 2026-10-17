@@ -27,6 +27,8 @@ internal static class Program
                 "gain" => ForceFeedbackCommands.Gain(rest),
                 "autocenter" => ForceFeedbackCommands.AutoCenter(rest),
                 "test" => ForceFeedbackCommands.Test(rest),
+                "ble-scan" => BleCommands.Scan(rest),
+                "ble-gatt" => BleCommands.Gatt(rest),
                 _ => UnknownCommand(command),
             };
         }
@@ -75,6 +77,12 @@ internal static class Program
                   --gain <0-100>      Set device gain for this run
                   --autocenter on|off Set autocenter for this run
                   --left              Constant force pushes left instead of right
+
+            Bluetooth LE, read-only (the wheel's configuration channel, see docs/protocol-research.md):
+              ble-scan [--seconds n] [--active] [--all]
+                                      List BLE devices that look like the wheel (passive by default)
+              ble-gatt [--address XX:XX:XX:XX:XX:XX]
+                                      List GATT services/characteristics; no reads, writes or subscriptions
             """);
     }
 }

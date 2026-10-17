@@ -23,7 +23,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $root 'src\PaceWheel.Cli\bin\Debug\net8.0-windows\pacewheel.exe'
+$exe = Join-Path $root 'src\PaceWheel.Cli\bin\Debug\net8.0-windows10.0.19041.0\pacewheel.exe'
 if (-not (Test-Path $exe)) {
     Write-Host "Build first: dotnet build" -ForegroundColor Red
     exit 1
