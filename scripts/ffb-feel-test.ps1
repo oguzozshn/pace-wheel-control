@@ -52,7 +52,11 @@ function Invoke-Step {
     Read-Host (T 'Press Enter when you are holding the wheel and ready' 'Direksiyonu tutuyor ve hazırsan Enter''a bas') | Out-Null
     foreach ($arguments in $Commands) {
         Write-Host "> pacewheel $($arguments -join ' ')" -ForegroundColor DarkGray
-        & $exe @arguments
+        # Echo pacewheel's output and keep its objective measurement in the results file.
+        & $exe @arguments | ForEach-Object {
+            Write-Host $_
+            if ($_ -like 'MEASURED:*') { Write-Result "[$Id] $($arguments -join ' ') :: $_" }
+        }
         Write-Result "[$Id] pacewheel $($arguments -join ' ') -> exit $LASTEXITCODE"
     }
     $answer = Read-Host $Question
@@ -62,25 +66,32 @@ function Invoke-Step {
 Write-Result "# FFB feel test $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ($Language, suite $Suite)"
 
 if ($Suite -eq 'gain') {
-    # Constant force at 10% / 2 s clearly overcomes the firmware centering spring; 5% / 1 s is
-    # not felt at all, and sine at 20% was too weak to compare.
+    # Constant force at 10% / 2 s overcomes the firmware centering spring; 5% / 1 s is not felt.
+    # Each step pushes right, then left, and pacewheel logs the measured steering displacement,
+    # so the result doesn't depend on how strong it felt.
+    $right = @('test', 'constant', '--strength', '10', '--seconds', '2')
+    $left = $right + '--left'
+    $touch = T 'Rest your hands very lightly on the wheel, the same way in every step; do not grip it. It pushes right, then left.' `
+               'Ellerini her adımda aynı şekilde, direksiyona çok hafifçe değdir; kavrama. Önce sağa, sonra sola itecek.'
+    $note = T 'Note anything odd (or just press Enter)' 'Garip bir şey olduysa yaz (yoksa sadece Enter)'
+
     Invoke-Step -Id 'G1' `
-        -Title (T 'Constant 10% to the right, 2 s, gain untouched (reference)' 'Sabit kuvvet %10 sağa, 2 saniye, kazanca dokunulmadan (referans)') `
-        -Instructions (T 'Hold the wheel loosely and feel how hard it pushes.' 'Direksiyonu hafifçe tut ve ne kadar sert ittiğini hisset.') `
-        -Commands @(, @('test', 'constant', '--strength', '10', '--seconds', '2')) `
-        -Question (T 'Strength 0-10 (this is the reference)' 'Güç 0-10 (bu referans)')
+        -Title (T 'Constant 10% right and left, 2 s each, gain untouched (reference)' 'Sabit kuvvet %10 sağa ve sola, 2''şer saniye, kazanca dokunulmadan (referans)') `
+        -Instructions $touch `
+        -Commands @($right, $left) `
+        -Question $note
 
     Invoke-Step -Id 'G2' `
         -Title (T 'Same, with gain 30% in the same process' 'Aynısı, aynı süreçte kazanç %30') `
-        -Instructions (T 'Same push, but the process sets device gain to 30% first.' 'Aynı itme, ama önce cihaz kazancı %30''a ayarlanıyor.') `
-        -Commands @(, @('test', 'constant', '--strength', '10', '--seconds', '2', '--gain', '30')) `
-        -Question (T 'Strength 0-10 compared to G1 (weaker = gain works)' 'G1''e göre güç 0-10 (daha zayıfsa kazanç çalışıyor)')
+        -Instructions $touch `
+        -Commands @(($right + '--gain', '30'), ($left + '--gain', '30')) `
+        -Question $note
 
     Invoke-Step -Id 'G3' `
-        -Title (T 'Gain 30% set by a process that exits, then the G1 push in a new process' 'Kazancı %30 yapan süreç kapanıyor, sonra yeni süreçte G1 itmesi') `
-        -Instructions (T 'First "gain 30" runs and exits, then the G1 effect plays without touching gain.' 'Önce "gain 30" çalışıp kapanıyor, sonra G1 efekti kazanca dokunmadan çalıyor.') `
-        -Commands @(@('gain', '30'), @('test', 'constant', '--strength', '10', '--seconds', '2')) `
-        -Question (T 'Strength 0-10 compared to G1 (same as G1 = gain did NOT persist)' 'G1''e göre güç 0-10 (G1 ile aynıysa kazanç KALICI DEĞİL)')
+        -Title (T 'Gain 30% set by a process that exits, then G1 in new processes' 'Kazancı %30 yapan süreç kapanıyor, sonra yeni süreçlerde G1') `
+        -Instructions $touch `
+        -Commands @(@('gain', '30'), $right, $left) `
+        -Question $note
 
     Write-Host ""
     Write-Host "$(T 'All steps done. Results:' 'Tüm adımlar bitti. Sonuçlar:') $ResultsPath" -ForegroundColor Green

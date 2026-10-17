@@ -131,6 +131,16 @@ internal static class ForceFeedbackCommands
             }
             PrintState(session, "Before");
 
+            // DirectInput returns a default position until the wheel's first input report after
+            // acquiring; the wheel reports a few times per second even at rest.
+            if (stop.Wait(TimeSpan.FromMilliseconds(400)))
+            {
+                Console.WriteLine("Aborted before start.");
+                return 2;
+            }
+            int start = session.ReadSteering();
+            int min = start, max = start;
+
             var clock = Stopwatch.StartNew();
             var effect = session.StartTestEffect(kind, strength, TimeSpan.FromSeconds(seconds), towardsRight);
             Console.WriteLine($"Playing {kind}... (Esc or Ctrl+C stops)");
@@ -139,11 +149,14 @@ internal static class ForceFeedbackCommands
             var lastReport = TimeSpan.Zero;
             while (clock.Elapsed < TimeSpan.FromSeconds(seconds) + TimeSpan.FromMilliseconds(200))
             {
-                if (stop.Wait(TimeSpan.FromMilliseconds(50)))
+                if (stop.Wait(TimeSpan.FromMilliseconds(20)))
                 {
                     aborted = true;
                     break;
                 }
+                int x = session.ReadSteering();
+                min = Math.Min(min, x);
+                max = Math.Max(max, x);
                 if (clock.Elapsed - lastReport >= TimeSpan.FromMilliseconds(500))
                 {
                     lastReport = clock.Elapsed;
@@ -153,6 +166,11 @@ internal static class ForceFeedbackCommands
 
             session.StopAll();
             Console.WriteLine(aborted ? "EMERGENCY STOP: effects stopped." : "Done; effect stopped.");
+
+            // Objective measure of the effect: how far the steering moved from where it started.
+            int left = start - min, right = max - start;
+            string peak = left > right ? $"{left} left" : $"{right} right";
+            Console.WriteLine($"MEASURED: steering start {start}, range {min}..{max}, peak displacement {peak} ({Math.Max(left, right) * 100.0 / 65535:0.0}% of full range)");
             PrintState(session, "After");
             return aborted ? 2 : 0;
         });

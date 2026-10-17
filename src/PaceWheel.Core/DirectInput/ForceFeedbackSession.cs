@@ -68,6 +68,13 @@ public sealed class ForceFeedbackSession : IDisposable
 
     public void SendCommand(ForceFeedbackCommand command) => _device.SendForceFeedbackCommand(command);
 
+    /// <summary>Current steering position (DirectInput X, 0..65535; lower = left).</summary>
+    public int ReadSteering()
+    {
+        _device.Poll();
+        return _device.GetCurrentJoystickState().X;
+    }
+
     /// <summary>
     /// Creates and starts one test effect on the X axis. Strength is capped at
     /// <see cref="MaxTestStrengthPercent"/> and duration at <see cref="MaxTestDuration"/>, so the
