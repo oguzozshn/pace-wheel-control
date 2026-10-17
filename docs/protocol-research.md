@@ -227,6 +227,11 @@ The meaning of params[1..5] is still a guess from the app's `writeForce(spring, 
 friction, inertia)` and `writeForceFeedback(ffb, reverse)`: likely FFB 100 and spring 88 /
 damper 80 / friction 80 / inertia 80. Changing one value and reading the page back will tell.
 
+| 6 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 09 01 28 50 50 50`, then `51 01 02`; `0xFFE2` CCCD `00 00` | `D3 09 01 28 50 50 50` (command echoed = accepted); page 2 now `22 23 84 03 64 28 50 50 50 00`: **only params[2] changed, 88 → 40** |
+
+Exchange 6 confirms the `53 09 01` layout: `<spring> <damper> <friction> <inertia>` map to
+params[2..5], and the change is stored in the profile. Undo: `53 09 01 58 50 50 50`.
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
