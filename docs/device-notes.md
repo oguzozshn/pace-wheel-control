@@ -102,8 +102,30 @@ from the preparsed data, so:
 At rest, with no pedals pressed: X ≈ 32838 (wheel near center), Y = 32767 (constant so far),
 and Z, Rx, Ry, Rz and Slider all 0.
 
-The mapping of wheel, pedals, shifter and buttons to axes and buttons is still to be filled in
-from a guided capture (see below).
+The mapping of wheel, pedals, shifter and buttons to axes and buttons is **not captured yet**.
+Two monitor sessions (2026-10-17) recorded no axis, button or POV changes at either the
+DirectInput or the raw HID level, so the controls weren't operated while they ran. Re-run with:
+
+```bash
+dotnet run --project src/PaceWheel.Cli -- monitor --raw --log monitor.log
+```
+
+### Raw input report 0x01 at rest (MI_00, from `monitor --raw`)
+
+```
+01 47 00 00 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 F9 07
+ID |X    |Y    |Z    |Rx   |Ry   |Rz   |Sl   |hat|buttons |pad  |
+```
+
+- X = 0x0047 (signed 71), which matches DirectInput's 32838 (= 32767 + 71).
+- Y = 0x8000. Z, Rx, Ry, Rz and Slider are 0. Hat = 0, which is outside the declared 1..8
+  range, so it reads as centered.
+- **The two trailing bytes, declared as constant padding, carry a live 16-bit value.** At rest
+  it drifted slowly from 0x07FF to 0x07F9 over about 90 s (values seen: 07FF, 07FE…07F9). The
+  wheel sends a new report every time it changes, even with nothing touched, roughly 3 reports
+  per second. Because the descriptor marks these bits as constant, DirectInput and games
+  ignore them. It looks like an undeclared sensor reading, perhaps motor temperature or current,
+  or a raw centering sensor. Phase 4 can check whether it reacts to force feedback load.
 
 ## Raw diagnostic output
 
