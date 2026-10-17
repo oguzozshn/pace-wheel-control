@@ -1,0 +1,15 @@
+<UserControl x:Class="PaceWheel.App.Controls.PedalBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="64">
+    <StackPanel>
+        <TextBlock x:Name="PercentText" Text="0%" HorizontalAlignment="Center" FontSize="14" FontWeight="SemiBold"
+                   Margin="0,0,0,6" />
+        <Border x:Name="Track" Width="40" Height="150" CornerRadius="10" Background="{StaticResource TrackBrush}"
+                HorizontalAlignment="Center" ClipToBounds="True">
+            <Border x:Name="Fill" VerticalAlignment="Bottom" Height="0" CornerRadius="10" />
+        </Border>
+        <TextBlock x:Name="LabelText" Text="PEDAL" Style="{StaticResource SmallLabel}" FontWeight="SemiBold"
+                   HorizontalAlignment="Center" Margin="0,8,0,0" />
+    </StackPanel>
+</UserControl>

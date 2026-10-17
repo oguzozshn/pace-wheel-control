@@ -1,0 +1,26 @@
+<UserControl x:Class="PaceWheel.App.Controls.SettingSlider"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Margin="0,0,0,18">
+        <DockPanel>
+            <TextBlock x:Name="ChangedBadge" DockPanel.Dock="Right" Text="● değişti" Visibility="Collapsed"
+                       Foreground="{StaticResource RacingAccentBrush}" FontSize="12" VerticalAlignment="Center" />
+            <TextBlock x:Name="TitleText" FontSize="14" VerticalAlignment="Center" />
+        </DockPanel>
+        <DockPanel Margin="0,4,0,0">
+            <TextBlock DockPanel.Dock="Left" VerticalAlignment="Bottom">
+                <Run x:Name="ValueText" Text="-" FontSize="26" FontWeight="SemiBold" />
+                <Run x:Name="UnitText" Text="" FontSize="14" Foreground="{StaticResource MutedTextBrush}" />
+            </TextBlock>
+            <TextBlock x:Name="OriginalText" DockPanel.Dock="Right" Style="{StaticResource SmallLabel}"
+                       VerticalAlignment="Bottom" Margin="0,0,0,4" />
+            <Border />
+        </DockPanel>
+        <Slider x:Name="ValueSlider" Margin="0,6,0,0" IsSnapToTickEnabled="True" IsEnabled="False"
+                ValueChanged="OnSliderValueChanged" />
+        <DockPanel>
+            <TextBlock x:Name="MaxText" DockPanel.Dock="Right" Style="{StaticResource SmallLabel}" />
+            <TextBlock x:Name="MinText" Style="{StaticResource SmallLabel}" />
+        </DockPanel>
+    </StackPanel>
+</UserControl>

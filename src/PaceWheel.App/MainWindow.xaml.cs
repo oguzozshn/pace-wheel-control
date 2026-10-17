@@ -1,23 +1,30 @@
 ﻿using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using PaceWheel.Core.Ble;
 using PaceWheel.Core.DirectInput;
 using Vortice.DirectInput;
+using Wpf.Ui.Controls;
+using TextBlock = System.Windows.Controls.TextBlock;
 
 namespace PaceWheel.App;
 
-public partial class MainWindow : Window
+public partial class MainWindow : FluentWindow
 {
     // Steering, throttle, brake, clutch (docs/device-notes.md, input mapping).
     private static readonly IReadOnlySet<string> Axes = new HashSet<string> { "X", "Z", "Rz", "S0" };
 
     // H-shifter gears 1-6 are buttons 17-22, reverse is 23.
     private const int FirstGearButton = 17;
+    private const int ReverseButton = 23;
 
     private readonly DispatcherTimer _inputTimer = new() { Interval = TimeSpan.FromMilliseconds(33) };
+    private readonly List<Ellipse> _buttonDots = new();
     private WheelDirectInput? _directInput;
     private IDirectInputDevice8? _device;
     private InputMonitor? _monitor;
@@ -32,6 +39,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _inputTimer.Tick += (_, _) => PollInput();
+        AngleSetting.ValueChanged += (_, _) => UpdateApplyState();
+        FfbSetting.ValueChanged += (_, _) => UpdateApplyState();
+        SpringSetting.ValueChanged += (_, _) => UpdateApplyState();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -57,20 +67,35 @@ public partial class MainWindow : Window
             var instance = _directInput.FindWheel();
             if (instance is null)
             {
-                InputStatus.Text = "Wheel not found over USB.";
+                SetBadge(UsbDot, UsbText, false, "USB: bulunamadı");
+                DeviceSubtitle.Text = "Direksiyon USB'de bulunamadı. Kabloyu kontrol et ve uygulamayı yeniden başlat.";
                 return;
             }
             _device = _directInput.CreateDevice(instance);
             _buttonCount = _device.Capabilities.ButtonCount;
             _povCount = _device.Capabilities.PovCount;
-            var hwnd = new WindowInteropHelper(this).Handle;
-            _monitor = new InputMonitor(_device, hwnd);
-            InputStatus.Text = $"{instance.InstanceName} (non-exclusive, read-only)";
+            _monitor = new InputMonitor(_device, new WindowInteropHelper(this).Handle);
+            CreateButtonDots(_buttonCount);
+            SetBadge(UsbDot, UsbText, true, "USB: bağlı");
+            DeviceSubtitle.Text = $"{instance.InstanceName} · canlı giriş (salt okunur)";
             _inputTimer.Start();
         }
         catch (Exception ex)
         {
-            InputStatus.Text = $"Input not available: {ex.Message}";
+            SetBadge(UsbDot, UsbText, false, "USB: hata");
+            DeviceSubtitle.Text = $"Giriş okunamıyor: {ex.Message}";
+        }
+    }
+
+    private void CreateButtonDots(int count)
+    {
+        ButtonGrid.Children.Clear();
+        _buttonDots.Clear();
+        for (int i = 0; i < count; i++)
+        {
+            var dot = new Ellipse { Width = 18, Height = 18, Margin = new Thickness(3), Fill = (Brush)FindResource("TrackBrush"), ToolTip = $"Düğme {i + 1}" };
+            _buttonDots.Add(dot);
+            ButtonGrid.Children.Add(dot);
         }
     }
 
@@ -88,39 +113,55 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _inputTimer.Stop();
-            InputStatus.Text = $"Input lost: {ex.Message}";
+            SetBadge(UsbDot, UsbText, false, "USB: bağlantı koptu");
+            DeviceSubtitle.Text = $"Giriş kesildi: {ex.Message}";
             return;
         }
 
         var axes = s.Axes.ToDictionary(a => a.Name, a => a.Value);
-        SteeringBar.Value = axes.GetValueOrDefault("X");
-        SteeringText.Text = (axes.GetValueOrDefault("X") - 32767).ToString(CultureInfo.InvariantCulture);
-        ThrottleBar.Value = axes.GetValueOrDefault("Z");
-        BrakeBar.Value = axes.GetValueOrDefault("Rz");
-        ClutchBar.Value = axes.GetValueOrDefault("S0");
-        PovText.Text = s.Povs.Count > 0 ? $"D-pad: {WheelInputSnapshot.PovText(s.Povs[0])}" : "D-pad: -";
+        WheelView.SetPosition(axes.GetValueOrDefault("X", 32767));
+        ThrottlePedal.SetValue(axes.GetValueOrDefault("Z"));
+        BrakePedal.SetValue(axes.GetValueOrDefault("Rz"));
+        ClutchPedal.SetValue(axes.GetValueOrDefault("S0"));
+        PovText.Text = s.Povs.Count > 0 ? PovArrow(s.Povs[0]) : "•";
 
-        var pressed = s.Buttons.Select((down, i) => (down, number: i + 1)).Where(b => b.down).Select(b => b.number).ToList();
-        ButtonsText.Text = "Buttons: " + (pressed.Count == 0 ? "-" : string.Join(", ", pressed));
-        int gear = pressed.FirstOrDefault(b => b >= FirstGearButton && b <= FirstGearButton + 6);
-        GearText.Text = gear == 0 ? "Gear: neutral" : gear == FirstGearButton + 6 ? "Gear: R" : $"Gear: {gear - FirstGearButton + 1}";
+        var accent = (Brush)FindResource("RacingAccentBrush");
+        var idle = (Brush)FindResource("TrackBrush");
+        int gear = 0;
+        for (int i = 0; i < s.Buttons.Length && i < _buttonDots.Count; i++)
+        {
+            _buttonDots[i].Fill = s.Buttons[i] ? accent : idle;
+            int number = i + 1;
+            if (s.Buttons[i] && number >= FirstGearButton && number <= ReverseButton)
+            {
+                gear = number;
+            }
+        }
+        GearText.Text = gear == 0 ? "N" : gear == ReverseButton ? "R" : (gear - FirstGearButton + 1).ToString(CultureInfo.InvariantCulture);
     }
+
+    private static string PovArrow(int pov) => pov < 0 || pov == 0xFFFF ? "•" : (pov / 4500) switch
+    {
+        0 => "↑", 1 => "↗", 2 => "→", 3 => "↘", 4 => "↓", 5 => "↙", 6 => "←", 7 => "↖", _ => "•",
+    };
 
     // ---- Wheel settings over BLE ------------------------------------------------------------
 
     private async void OnFind(object sender, RoutedEventArgs e)
     {
-        await RunBusy("Scanning for the wheel (10 s, active scan)...", async () =>
+        await RunBusy("Direksiyon aranıyor (10 sn, aktif tarama)…", async () =>
         {
             var found = (await WheelBle.ScanAsync(TimeSpan.FromSeconds(10), active: true, CancellationToken.None))
                 .FirstOrDefault(d => d.Name == WheelBle.WheelName || d.ServiceUuids.Contains(WheelBle.ConfigService));
             if (found is null)
             {
-                Log("Wheel not found. Is the USB cable plugged in and the mobile app closed?");
+                Log("Direksiyon bulunamadı. USB kablosu takılı ve mobil uygulama kapalı mı?");
+                Notify("Direksiyon bulunamadı", "USB kablosu takılı ve mobil uygulama kapalı olmalı.", ControlAppearance.Caution);
                 return;
             }
             AddressBox.Text = found.AddressText;
-            Log($"Found {found.Name ?? "(no name)"} at {found.AddressText}, rssi {found.BestRssi} dBm.");
+            SetBadge(BleDot, BleText, true, "Bluetooth: bulundu");
+            Log($"Bulundu: {found.Name ?? "(isimsiz)"} · {found.AddressText} · {found.BestRssi} dBm");
         });
     }
 
@@ -130,10 +171,11 @@ public partial class MainWindow : Window
         {
             return;
         }
-        await RunBusy("Reading settings (50 01, 51 <mode> 02)...", async () =>
+        await RunBusy("Ayarlar okunuyor (50 01, 51 <mod> 02)…", async () =>
         {
             ShowSettings(await WheelSettings.ReadAsync(address));
-            Log($"Read: {_current}");
+            Log($"Okundu: {_current}");
+            Notify("Ayarlar okundu", $"Açı {_current!.AngleDegrees}°, FFB {_current.FfbStrength}, yay {_current.Spring}", ControlAppearance.Info);
         });
     }
 
@@ -143,8 +185,8 @@ public partial class MainWindow : Window
         {
             return;
         }
-        var commands = _current.BuildChangeCommands((int)AngleSlider.Value, (int)FfbSlider.Value, (int)SpringSlider.Value);
-        await SendChange(address, _current, commands, "Apply");
+        var commands = _current.BuildChangeCommands(AngleSetting.Value, FfbSetting.Value, SpringSetting.Value);
+        await SendChange(address, _current, commands, "Uygula");
     }
 
     private async void OnUndo(object sender, RoutedEventArgs e)
@@ -154,7 +196,7 @@ public partial class MainWindow : Window
             return;
         }
         var commands = _current.BuildChangeCommands(old.AngleDegrees, old.FfbStrength, old.Spring);
-        await SendChange(address, _current, commands, "Undo");
+        await SendChange(address, _current, commands, "Geri al");
     }
 
     /// <summary>Shows the exact bytes, asks for confirmation, backs up, sends and reads back.</summary>
@@ -162,43 +204,62 @@ public partial class MainWindow : Window
     {
         if (commands.Count == 0)
         {
-            Log("Nothing to change.");
+            Notify("Değişiklik yok", "Direksiyondaki değerlerle aynı.", ControlAppearance.Secondary);
             return;
         }
 
-        string bytes = string.Join(Environment.NewLine, commands.Select(c => "  0xFFE1 <- " + BitConverter.ToString(c).Replace('-', ' ')));
-        var answer = MessageBox.Show(this,
-            $"{what}: these bytes will be written to the wheel, in this order:{Environment.NewLine}{Environment.NewLine}" +
-            $"  0xFFE2 CCCD <- 01 00{Environment.NewLine}{bytes}{Environment.NewLine}  0xFFE2 CCCD <- 00 00{Environment.NewLine}{Environment.NewLine}" +
-            "Then the settings are read back (50 01, 51 <mode> 02). Nothing else is written. Send?",
-            "Confirm bytes", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
-        if (answer != MessageBoxResult.Yes)
+        string bytes = string.Join(Environment.NewLine, commands.Select(c => "0xFFE1 ← " + BitConverter.ToString(c).Replace('-', ' ')));
+        var dialog = new ContentDialog(DialogHost)
         {
-            Log($"{what} cancelled; nothing was sent.");
+            Title = $"{what}: baytları onayla",
+            Content = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock { Text = "Direksiyona sırayla şunlar yazılacak:", Margin = new Thickness(0, 0, 0, 8) },
+                    new System.Windows.Controls.TextBox
+                    {
+                        Text = $"0xFFE2 CCCD ← 01 00{Environment.NewLine}{bytes}{Environment.NewLine}0xFFE2 CCCD ← 00 00",
+                        IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13, TextWrapping = TextWrapping.NoWrap,
+                    },
+                    new TextBlock
+                    {
+                        Text = "Ardından ayarlar geri okunup kontrol edilir (50 01, 51 <mod> 02). Önce yedek alınır. Başka hiçbir şey yazılmaz.",
+                        TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), Opacity = 0.75,
+                    },
+                },
+            },
+            PrimaryButtonText = "Gönder",
+            CloseButtonText = "Vazgeç",
+            DefaultButton = ContentDialogButton.Close,
+            PrimaryButtonAppearance = ControlAppearance.Primary,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            Log($"{what} iptal edildi; hiçbir şey gönderilmedi.");
             return;
         }
 
-        await RunBusy($"{what}: sending {commands.Count} command(s)...", async () =>
+        await RunBusy($"{what}: {commands.Count} komut gönderiliyor…", async () =>
         {
-            string backup = SaveBackup(address, before);
-            Log($"Backup saved: {backup}");
+            Log($"Yedek kaydedildi: {SaveBackup(address, before)}");
             foreach (var c in commands)
             {
-                Log($"Sending {BitConverter.ToString(c).Replace('-', ' ')}");
+                Log($"Gönderiliyor: {BitConverter.ToString(c).Replace('-', ' ')}");
             }
             var after = await WheelSettings.ApplyAsync(address, commands);
             _beforeLastChange = before;
             ShowSettings(after);
-            Log($"Read back: {after}");
-            UndoButton.IsEnabled = true;
+            Log($"Geri okundu: {after}");
+            Notify($"{what} tamam", "Ayarlar direksiyona yazıldı ve geri okunarak doğrulandı.", ControlAppearance.Success);
         });
     }
 
     private static string SaveBackup(ulong address, WheelSettings settings)
     {
-        string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PaceWheel", "backups");
+        string dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PaceWheel", "backups");
         Directory.CreateDirectory(dir);
-        string path = Path.Combine(dir, $"settings-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+        string path = System.IO.Path.Combine(dir, $"settings-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
         File.WriteAllText(path, $"# {BleSighting.FormatAddress(address)} {DateTime.Now:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}{settings}{Environment.NewLine}");
         return path;
     }
@@ -206,36 +267,29 @@ public partial class MainWindow : Window
     private void ShowSettings(WheelSettings settings)
     {
         _current = settings;
-        CurrentText.Text = $"Current: {settings}";
-        AngleSlider.Value = Math.Clamp(settings.AngleDegrees, WheelSettings.MinAngle, WheelSettings.MaxAngle);
-        FfbSlider.Value = settings.FfbStrength;
-        SpringSlider.Value = settings.Spring;
-        AngleSlider.IsEnabled = FfbSlider.IsEnabled = SpringSlider.IsEnabled = ApplyButton.IsEnabled = true;
-        UpdateSliderLabels();
+        AngleSetting.Load(settings.AngleDegrees);
+        FfbSetting.Load(settings.FfbStrength);
+        SpringSetting.Load(settings.Spring);
+        WheelView.RangeDegrees = settings.AngleDegrees;
+        OtherSettingsText.Text = $"Sönüm {settings.Damper} · sürtünme {settings.Friction} · atalet {settings.Inertia} · firmware 0x{settings.FirmwareVersion:X4} · mod {settings.Mode}";
+        SetBadge(BleDot, BleText, true, "Bluetooth: okundu");
+        UpdateApplyState();
     }
 
-    private void OnSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => UpdateSliderLabels();
-
-    private void UpdateSliderLabels()
+    private void UpdateApplyState()
     {
-        // Slider minimums raise ValueChanged during InitializeComponent, before all elements exist.
-        if (AngleValue is null || FfbValue is null || SpringValue is null || AngleSlider is null || FfbSlider is null || SpringSlider is null)
-        {
-            return;
-        }
-        AngleValue.Text = ((int)AngleSlider.Value).ToString(CultureInfo.InvariantCulture);
-        FfbValue.Text = ((int)FfbSlider.Value).ToString(CultureInfo.InvariantCulture);
-        SpringValue.Text = ((int)SpringSlider.Value).ToString(CultureInfo.InvariantCulture);
+        ApplyButton.IsEnabled = !_busy && _current is not null && (AngleSetting.IsChanged || FfbSetting.IsChanged || SpringSetting.IsChanged);
+        UndoButton.IsEnabled = !_busy && _beforeLastChange is not null;
     }
 
     private ulong? ParseAddress()
     {
         string hex = AddressBox.Text.Replace(":", "").Replace("-", "").Trim();
-        if (ulong.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ulong value) && hex.Length == 12)
+        if (hex.Length == 12 && ulong.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ulong value))
         {
             return value;
         }
-        Log("Enter the wheel's BLE address or press \"Find wheel\".");
+        Notify("Adres gerekli", "Bluetooth adresini yaz ya da \"Bul\"a bas.", ControlAppearance.Caution);
         return null;
     }
 
@@ -246,7 +300,9 @@ public partial class MainWindow : Window
             return;
         }
         _busy = true;
-        FindButton.IsEnabled = ReadButton.IsEnabled = ApplyButton.IsEnabled = UndoButton.IsEnabled = false;
+        FindButton.IsEnabled = ReadButton.IsEnabled = false;
+        UpdateApplyState();
+        BusyRing.Visibility = Visibility.Visible;
         Log(message);
         try
         {
@@ -254,15 +310,34 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"Error: {ex.Message}");
+            Log($"Hata: {ex.Message}");
+            SetBadge(BleDot, BleText, false, "Bluetooth: hata");
+            Notify("İşlem başarısız", ex.Message, ControlAppearance.Danger);
         }
         finally
         {
             _busy = false;
             FindButton.IsEnabled = ReadButton.IsEnabled = true;
-            ApplyButton.IsEnabled = _current is not null;
-            UndoButton.IsEnabled = _beforeLastChange is not null;
+            BusyRing.Visibility = Visibility.Collapsed;
+            UpdateApplyState();
         }
+    }
+
+    private void SetBadge(Ellipse dot, TextBlock text, bool ok, string label)
+    {
+        dot.Fill = (Brush)FindResource(ok ? "OkBrush" : "OffBrush");
+        text.Text = label;
+    }
+
+    private void Notify(string title, string message, ControlAppearance appearance)
+    {
+        new Snackbar(SnackbarHost)
+        {
+            Title = title,
+            Content = message,
+            Appearance = appearance,
+            Timeout = TimeSpan.FromSeconds(4),
+        }.Show();
     }
 
     private void Log(string line)
