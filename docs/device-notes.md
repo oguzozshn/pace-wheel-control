@@ -150,9 +150,9 @@ B=2, X=3, Y=4, RB=6, LT=7, RT=8, Back=9, Start=10, SL=11, SR=12, Mode=13), which
 the alignment.
 
 Open questions:
-- **B5 (LB / left paddle) never fires.** It might be a hardware fault, a firmware remap done
-  through the mobile app, or the button might only work in another mode. Worth checking with
-  the joystick dialog (`joy.cpl`) before blaming this tool.
+- ~~B5 (LB / left paddle) never fires.~~ Solved in Phase 4: the wheel's profile mapped L1 to
+  the keyboard letter G (sent through MI_01). Remapped with `53 02 01 0C 0C`; B5 now fires.
+  See protocol-research.md.
 - Shifter: confirm it is 6+R (B23 = reverse) and not 7 forward gears.
 - Raw X reached -32768, one below the declared logical minimum of -32767.
 
