@@ -33,6 +33,8 @@ internal static class Program
                 "ble-read-state" => BleCommands.ReadState(rest),
                 "ble-backup" => BleCommands.Backup(rest),
                 "ble-send" => BleCommands.Send(rest),
+                "wheel-get" => BleCommands.WheelGet(rest),
+                "wheel-set" => BleCommands.WheelSet(rest),
                 _ => UnknownCommand(command),
             };
         }
@@ -95,6 +97,12 @@ internal static class Program
                                       Show (dry run) or read all six profile pages (51 <mode> 00..05)
               ble-send --address XX:XX:XX:XX:XX:XX --request "hex" [--request ...] [--send]
                                       Show (dry run) or send approved 50/51/53 requests; 52 and 53 08 are refused
+
+            Wheel settings over BLE (stored in the wheel; close the mobile app, keep USB plugged in):
+              wheel-get --address XX:XX:XX:XX:XX:XX
+                                      Read angle, FFB strength, spring, damper, friction, inertia
+              wheel-set --address XX:XX:XX:XX:XX:XX [--angle 90-1080] [--ffb 0-100] [--spring 0-100] [--send]
+                                      Change settings (dry run by default), back up, read back, print undo
             """);
     }
 }

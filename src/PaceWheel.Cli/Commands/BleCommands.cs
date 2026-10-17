@@ -259,6 +259,82 @@ internal static class BleCommands
         return 0;
     }
 
+    public static int WheelGet(string[] args)
+    {
+        ulong? address = ParseAddress(StringOption(args, "--address"));
+        if (address is null)
+        {
+            Console.Error.WriteLine("Usage: wheel-get --address XX:XX:XX:XX:XX:XX");
+            return 1;
+        }
+        Console.WriteLine("Reading state (50 01) and profile page 2 (51 <mode> 02); nothing else is written.");
+        Console.WriteLine(WheelSettings.ReadAsync(address.Value).GetAwaiter().GetResult());
+        return 0;
+    }
+
+    /// <summary>Changes angle, FFB strength and/or spring, keeping everything else; dry run by default.</summary>
+    public static int WheelSet(string[] args)
+    {
+        ulong? address = ParseAddress(StringOption(args, "--address"));
+        int? angle = IntOption(args, "--angle"), ffb = IntOption(args, "--ffb"), spring = IntOption(args, "--spring");
+        if (address is null || (angle, ffb, spring) == (null, null, null))
+        {
+            Console.Error.WriteLine("Usage: wheel-set --address XX:XX:XX:XX:XX:XX [--angle 90-1080] [--ffb 0-100] [--spring 0-100] [--send]");
+            return 1;
+        }
+        if (angle is < WheelSettings.MinAngle or > WheelSettings.MaxAngle || ffb is < 0 or > 100 || spring is < 0 or > 100)
+        {
+            Console.Error.WriteLine($"Out of range: angle {WheelSettings.MinAngle}-{WheelSettings.MaxAngle}, ffb 0-100, spring 0-100.");
+            return 1;
+        }
+        bool send = args.Contains("--send");
+
+        Console.WriteLine("Steps:");
+        Console.WriteLine("  1. read state (50 01) and profile page 2 (51 <mode> 02); save them to backups/");
+        if (angle is int a) Console.WriteLine($"  -> 0xFFE1 <- {Hex(WheelSettings.AngleCommand(a))}   angle {a}°");
+        if (ffb is int f) Console.WriteLine($"  -> 0xFFE1 <- 53 03 <mode> {f:X2} <current reverse>   FFB strength {f}");
+        if (spring is int s) Console.WriteLine($"  -> 0xFFE1 <- 53 09 01 {s:X2} <current damper> <current friction> <current inertia>   spring {s}");
+        Console.WriteLine("  2. read page 2 again and compare; print the undo command");
+        Console.WriteLine("Each BLE session also writes 0xFFE2's CCCD (01 00 at the start, 00 00 at the end).");
+
+        if (!send)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Dry run: nothing was sent. Add --send to perform these steps.");
+            return 0;
+        }
+
+        var before = WheelSettings.ReadAsync(address.Value).GetAwaiter().GetResult();
+        Console.WriteLine($"Before: {before}");
+        string backup = Path.Combine("backups", $"settings-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+        Directory.CreateDirectory("backups");
+        File.WriteAllText(backup, $"# wheel-set backup {DateTime.Now:yyyy-MM-dd HH:mm:ss} {BleSighting.FormatAddress(address.Value)}{Environment.NewLine}{before}{Environment.NewLine}");
+
+        var commands = new List<byte[]>();
+        if (angle is int a2) commands.Add(WheelSettings.AngleCommand(a2));
+        if (ffb is int f2) commands.Add(before.FfbCommand(f2));
+        if (spring is int s2) commands.Add(before.SpringCommand(s2));
+        foreach (var c in commands)
+        {
+            Console.WriteLine($"Sending {Hex(c)}");
+        }
+        WheelBle.ExchangeAsync(address.Value, commands, TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+
+        var after = WheelSettings.ReadAsync(address.Value).GetAwaiter().GetResult();
+        Console.WriteLine($"After:  {after}");
+        bool ok = (angle is null || after.AngleDegrees == angle) && (ffb is null || after.FfbStrength == ffb) && (spring is null || after.Spring == spring);
+        Console.WriteLine(ok ? "Readback matches." : "WARNING: readback does not match the requested values.");
+        var undo = new List<string>();
+        if (angle is not null) undo.Add($"--angle {before.AngleDegrees}");
+        if (ffb is not null) undo.Add($"--ffb {before.FfbStrength}");
+        if (spring is not null) undo.Add($"--spring {before.Spring}");
+        Console.WriteLine($"Backup: {Path.GetFullPath(backup)}");
+        Console.WriteLine($"Undo:   pacewheel wheel-set --address {BleSighting.FormatAddress(address.Value)} {string.Join(" ", undo)} --send");
+        return ok ? 0 : 2;
+    }
+
+    private static string Hex(byte[] bytes) => BitConverter.ToString(bytes).Replace('-', ' ');
+
     private static bool IsCandidate(BleSighting s) =>
         s.ServiceUuids.Contains(WheelBle.ConfigService) ||
         (s.Name is string n && (n.Contains("WHEEL", StringComparison.OrdinalIgnoreCase) || n.Contains("V987", StringComparison.OrdinalIgnoreCase)));
