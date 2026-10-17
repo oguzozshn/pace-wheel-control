@@ -20,6 +20,8 @@ internal static class Program
             {
                 "list" => HidCommands.List(Console.Out),
                 "descriptor" => HidCommands.Descriptor(Console.Out, rest.Contains("--hex-only")),
+                "di-info" => DirectInputCommands.Info(Console.Out),
+                "monitor" => DirectInputCommands.Monitor(rest),
                 _ => UnknownCommand(command),
             };
         }
@@ -47,6 +49,12 @@ internal static class Program
             Commands:
               list                    List every HID node of the wheel with usage and report lengths
               descriptor [--hex-only] Dump each node's HID report descriptor as hex and decoded
+              di-info                 DirectInput view: capabilities, objects, FFB effect types
+              monitor [options]       Live view of axes, POV and buttons (non-exclusive, read-only)
+                  --seconds <n>       Stop after n seconds
+                  --threshold <n>     Minimum axis change to report (default 64 of 0..65535)
+                  --log <file>        Append every change and the session summary to a file
+                  --changes           Print change lines instead of the live dashboard
             """);
     }
 }
