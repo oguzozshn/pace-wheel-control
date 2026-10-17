@@ -12,6 +12,9 @@ internal static class ForceFeedbackCommands
 {
     private static readonly TimeSpan Countdown = TimeSpan.FromSeconds(3);
 
+    /// <summary>DirectInput's centered axis value, returned before the first input report arrives.</summary>
+    private const int DefaultAxisValue = 32767;
+
     public static int Status(string[] args) => WithSession(session =>
     {
         PrintState(session, "Current");
@@ -131,15 +134,26 @@ internal static class ForceFeedbackCommands
             }
             PrintState(session, "Before");
 
-            // DirectInput returns a default position until the wheel's first input report after
-            // acquiring; the wheel reports a few times per second even at rest.
-            if (stop.Wait(TimeSpan.FromMilliseconds(400)))
+            // DirectInput returns the default 32767 until the wheel's first input report after
+            // acquiring. The wheel reports a few times per second even at rest, so wait for a real
+            // value; if none arrives the start position is unknown and only the travel is reported.
+            int? start = null;
+            var waitForReport = Stopwatch.StartNew();
+            while (waitForReport.Elapsed < TimeSpan.FromSeconds(1.5))
             {
-                Console.WriteLine("Aborted before start.");
-                return 2;
+                if (stop.Wait(TimeSpan.FromMilliseconds(20)))
+                {
+                    Console.WriteLine("Aborted before start.");
+                    return 2;
+                }
+                int x = session.ReadSteering();
+                if (x != DefaultAxisValue)
+                {
+                    start = x;
+                    break;
+                }
             }
-            int start = session.ReadSteering();
-            int min = start, max = start;
+            int min = start ?? int.MaxValue, max = start ?? int.MinValue;
 
             var clock = Stopwatch.StartNew();
             var effect = session.StartTestEffect(kind, strength, TimeSpan.FromSeconds(seconds), towardsRight);
@@ -154,9 +168,12 @@ internal static class ForceFeedbackCommands
                     aborted = true;
                     break;
                 }
-                int x = session.ReadSteering();
-                min = Math.Min(min, x);
-                max = Math.Max(max, x);
+                int position = session.ReadSteering();
+                if (start is not null || position != DefaultAxisValue)
+                {
+                    min = Math.Min(min, position);
+                    max = Math.Max(max, position);
+                }
                 if (clock.Elapsed - lastReport >= TimeSpan.FromMilliseconds(500))
                 {
                     lastReport = clock.Elapsed;
@@ -167,10 +184,19 @@ internal static class ForceFeedbackCommands
             session.StopAll();
             Console.WriteLine(aborted ? "EMERGENCY STOP: effects stopped." : "Done; effect stopped.");
 
-            // Objective measure of the effect: how far the steering moved from where it started.
-            int left = start - min, right = max - start;
-            string peak = left > right ? $"{left} left" : $"{right} right";
-            Console.WriteLine($"MEASURED: steering start {start}, range {min}..{max}, peak displacement {peak} ({Math.Max(left, right) * 100.0 / 65535:0.0}% of full range)");
+            // Objective measure of the effect: how far the steering moved.
+            if (min > max)
+            {
+                Console.WriteLine("MEASURED: no steering report received during the effect");
+            }
+            else
+            {
+                int travel = max - min;
+                string direction = start is int s0
+                    ? (max - s0 >= s0 - min ? "right" : "left")
+                    : "unknown (start position not reported)";
+                Console.WriteLine($"MEASURED: steering start {start?.ToString() ?? "?"}, range {min}..{max}, travel {travel} ({travel * 100.0 / 65535:0.0}% of full range), direction {direction}");
+            }
             PrintState(session, "After");
             return aborted ? 2 : 0;
         });
