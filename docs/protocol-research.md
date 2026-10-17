@@ -203,6 +203,7 @@ Every write to the wheel's configuration channel, in order, each approved byte f
 | # | Date | Writes | Result |
 | --- | --- | --- | --- |
 | 1 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE2` ← `50 01`; `0xFFE2` CCCD `00 00` | writes accepted, **no notification within 2 s**. `50 01` went to the response characteristic by mistake (wrong guess); no visible change on the wheel |
+| 2 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `50 01`; `0xFFE2` CCCD `00 00` | writes accepted, **no notification within 2 s**. Wheel connected over USB at the same time; mobile app closed |
 
 ### Not touched
 
