@@ -22,6 +22,7 @@ internal static class Program
                 "descriptor" => HidCommands.Descriptor(Console.Out, rest.Contains("--hex-only")),
                 "di-info" => DirectInputCommands.Info(Console.Out),
                 "monitor" => DirectInputCommands.Monitor(rest),
+                "notes" => NotesCommand.Run(rest),
                 _ => UnknownCommand(command),
             };
         }
@@ -55,6 +56,7 @@ internal static class Program
                   --threshold <n>     Minimum axis change to report (default 64 of 0..65535)
                   --log <file>        Append every change and the session summary to a file
                   --changes           Print change lines instead of the live dashboard
+              notes [--path <file>]   Regenerate the diagnostic block in docs/device-notes.md
             """);
     }
 }
