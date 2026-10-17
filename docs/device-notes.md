@@ -99,30 +99,62 @@ from the preparsed data, so:
 
 ## Input mapping (from `pacewheel monitor`)
 
-At rest, with no pedals pressed: X ≈ 32838 (wheel near center), Y = 32767 (constant so far),
-and Z, Rx, Ry, Rz and Slider all 0.
+Captured on 2026-10-17 with `monitor --raw --log`, in two sessions:
+- Session A: steering and buttons; pedals and shifter not connected.
+- Session B: pedals and shifter connected; each control operated in a fixed order, with
+  pauses, so log timestamps can be matched to physical controls.
 
-Captured on 2026-10-17 with `monitor --raw --log` (a 100 s session, 6,929 raw reports).
-The first two sessions that day recorded no movement because the controls weren't operated.
+### Axes
 
-| Control | Maps to | Verified |
+| Control | DirectInput | Raw report 0x01 | Range seen |
+| --- | --- | --- | --- |
+| Steering | X | bytes 1-2, signed 16-bit | full lock both ways: 0..65535 (raw -32768..32767) |
+| Throttle | Z | bytes 5-6 | 0..65535 |
+| Brake | Rz | bytes 11-12 | 0..65535 |
+| Clutch | Slider (S0) | bytes 13-14 | 0..65535 |
+| unused | Y, Rx, Ry | | never moved (Y rests at 32767, Rx/Ry at 0) |
+
+All three pedals rest at 0 and reach the full 65535 at the end of travel.
+
+### POV and buttons
+
+Raw report: byte 15 is the hat (1 = up … 8 = up-left, 0 = centered). Bytes 16-18 are
+buttons B1-B24, LSB first.
+
+| Physical control | DirectInput | Notes |
 | --- | --- | --- |
-| Steering | **X** (raw: bytes 1-2, signed 16-bit) | yes: full lock both ways, DirectInput 0..65535, raw -32768..32767 |
-| D-pad | **POV 0** (raw: byte 15, 1 = up … 8 = up-left, 0 = centered) | yes: 90°, 135°, 180°, 270°, 315° seen |
-| Buttons | **B1-B4, B6-B13** (raw: byte 16 = B1-B8, byte 17 = B9-B16, bit 0 first) | yes, pressed one at a time; which physical button is which isn't recorded yet |
-| Throttle, brake, clutch | probably Z / Rx / Ry / Rz / Slider | **no**: none of these axes moved |
-| H-shifter | probably buttons ≥ B14 | **no**: no button above B13 was seen |
-| B5, B14-B24 | ? | not seen |
+| D-pad | POV 0 | up 0°, right 90°, down 180°, left 270°, diagonals 135° and 315° also seen |
+| A | B1 | |
+| B | B2 | |
+| X | B3 | |
+| Y | B4 | |
+| LB, left paddle shifter | B5 (expected) | **never registered** in any session (see below) |
+| RB, right paddle shifter | B6 | the paddle and RB report the same button |
+| LT | B7 | digital button, not an axis |
+| RT | B8 | digital button, not an axis |
+| Back | B9 | |
+| Start | B10 | |
+| SL | B11 | |
+| SR | B12 | |
+| Mode | B13 | |
+| Prog | none | sends no input report; probably handled by the firmware (programming / remap) |
+| H-shifter gears 1-6 | B17-B22 | one button per gear; neutral = no button |
+| H-shifter reverse | B23 | the 7th position in the sequence; assumes a 6+R shifter |
+| unused | B14-B16, B24 | never seen |
 
-Notes:
+How the buttons were matched: the user pressed the buttons in the order LB, LT, SL, Back,
+Mode, Prog, Start, SR, RT, RB, X, Y, B, A, left paddle, right paddle. The log has 13 button
+events for those 16 presses. The long pauses in the log (about 8-16 s) sit exactly where LB,
+Prog and the left paddle should be. The result is the standard Xbox-style numbering (A=1,
+B=2, X=3, Y=4, RB=6, LT=7, RT=8, Back=9, Start=10, SL=11, SR=12, Mode=13), which supports
+the alignment.
+
+Open questions:
+- **B5 (LB / left paddle) never fires.** It might be a hardware fault, a firmware remap done
+  through the mobile app, or the button might only work in another mode. Worth checking with
+  the joystick dialog (`joy.cpl`) before blaming this tool.
+- Shifter: confirm it is 6+R (B23 = reverse) and not 7 forward gears.
 - Raw X reached -32768, one below the declared logical minimum of -32767.
-- Y stays at 32767 (raw 0x8000) and never moved. It's probably an unused declared axis.
-- Still open: pedals and shifter (are they connected to the wheel base?), and the physical
-  labels of B1-B13. Re-run with:
-
-```bash
-dotnet run --project src/PaceWheel.Cli -- monitor --raw --log monitor.log
-```
 
 ### Raw input report 0x01 at rest (MI_00, from `monitor --raw`)
 
