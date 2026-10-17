@@ -238,6 +238,11 @@ is the firmware centering spring that DirectInput couldn't reach in Phase 2.
 | 7 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 09 01 58 50 50 50`, then `51 01 02`; `0xFFE2` CCCD `00 00` | page 2 back to `22 23 84 03 64 58 50 50 50 00` (original). The `D3` echo didn't arrive this time; the readback confirms the value |
 | 8 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 03 01 32 00`, then `51 01 02`; `0xFFE2` CCCD `00 00` | `D3 03 01 32 00` (accepted); page 2 now `22 23 84 03 32 58 50 50 50 00`: **params[1] (FFB strength) 100 → 50**, nothing else changed. Undo: `53 03 01 64 00` |
 
+Effect of exchange 8, measured with `pacewheel test constant --strength 10 --seconds 2`
+(hands resting lightly): steering travel **7,156** right and **7,275** left, against
+~21,000-23,700 at FFB 100 in Phase 2. The firmware FFB strength scales what games and
+DirectInput send (unlike DIPROP_FFGAIN, which the wheel ignores), and not linearly.
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
