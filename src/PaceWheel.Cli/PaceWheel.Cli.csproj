@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>pacewheel</AssemblyName>
+    <RootNamespace>PaceWheel.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PaceWheel.Core\PaceWheel.Core.csproj" />
+  </ItemGroup>
+
+</Project>
