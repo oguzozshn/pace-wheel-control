@@ -102,9 +102,23 @@ from the preparsed data, so:
 At rest, with no pedals pressed: X ≈ 32838 (wheel near center), Y = 32767 (constant so far),
 and Z, Rx, Ry, Rz and Slider all 0.
 
-The mapping of wheel, pedals, shifter and buttons to axes and buttons is **not captured yet**.
-Two monitor sessions (2026-10-17) recorded no axis, button or POV changes at either the
-DirectInput or the raw HID level, so the controls weren't operated while they ran. Re-run with:
+Captured on 2026-10-17 with `monitor --raw --log` (a 100 s session, 6,929 raw reports).
+The first two sessions that day recorded no movement because the controls weren't operated.
+
+| Control | Maps to | Verified |
+| --- | --- | --- |
+| Steering | **X** (raw: bytes 1-2, signed 16-bit) | yes: full lock both ways, DirectInput 0..65535, raw -32768..32767 |
+| D-pad | **POV 0** (raw: byte 15, 1 = up … 8 = up-left, 0 = centered) | yes: 90°, 135°, 180°, 270°, 315° seen |
+| Buttons | **B1-B4, B6-B13** (raw: byte 16 = B1-B8, byte 17 = B9-B16, bit 0 first) | yes, pressed one at a time; which physical button is which isn't recorded yet |
+| Throttle, brake, clutch | probably Z / Rx / Ry / Rz / Slider | **no**: none of these axes moved |
+| H-shifter | probably buttons ≥ B14 | **no**: no button above B13 was seen |
+| B5, B14-B24 | ? | not seen |
+
+Notes:
+- Raw X reached -32768, one below the declared logical minimum of -32767.
+- Y stays at 32767 (raw 0x8000) and never moved. It's probably an unused declared axis.
+- Still open: pedals and shifter (are they connected to the wheel base?), and the physical
+  labels of B1-B13. Re-run with:
 
 ```bash
 dotnet run --project src/PaceWheel.Cli -- monitor --raw --log monitor.log
@@ -123,7 +137,8 @@ ID |X    |Y    |Z    |Rx   |Ry   |Rz   |Sl   |hat|buttons |pad  |
 - **The two trailing bytes, declared as constant padding, carry a live 16-bit value.** At rest
   it drifted slowly from 0x07FF to 0x07F9 over about 90 s (values seen: 07FF, 07FE…07F9). The
   wheel sends a new report every time it changes, even with nothing touched, roughly 3 reports
-  per second. Because the descriptor marks these bits as constant, DirectInput and games
+  per second. About 15 minutes later it was 0x07C9-0x07D9, so it keeps falling slowly while
+  the wheel is powered, which fits a warming temperature sensor. Because the descriptor marks these bits as constant, DirectInput and games
   ignore them. It looks like an undeclared sensor reading, perhaps motor temperature or current,
   or a raw centering sensor. Phase 4 can check whether it reacts to force feedback load.
 
