@@ -218,9 +218,10 @@ public partial class MainWindow : Window
 
     private void UpdateSliderLabels()
     {
-        if (AngleValue is null)
+        // Slider minimums raise ValueChanged during InitializeComponent, before all elements exist.
+        if (AngleValue is null || FfbValue is null || SpringValue is null || AngleSlider is null || FfbSlider is null || SpringSlider is null)
         {
-            return; // Still initializing.
+            return;
         }
         AngleValue.Text = ((int)AngleSlider.Value).ToString(CultureInfo.InvariantCulture);
         FfbValue.Text = ((int)FfbSlider.Value).ToString(CultureInfo.InvariantCulture);
