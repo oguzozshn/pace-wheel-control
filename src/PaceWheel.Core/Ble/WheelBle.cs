@@ -180,6 +180,79 @@ public static class WheelBle
         return results;
     }
 
+    /// <summary>Command characteristic (Write + Notify + CCCD), see docs/protocol-research.md.</summary>
+    public static readonly Guid CommandCharacteristic = Guid.Parse("0000ffe2-0000-1000-8000-00805f9b34fb");
+
+    /// <summary>
+    /// Sends one request on 0xFFE2 and collects the notifications that arrive within
+    /// <paramref name="window"/>. Writes exactly three things: CCCD = 01 00 (notifications on),
+    /// the request, and CCCD = 00 00 (notifications off) at the end, also on failure.
+    /// Callers must only pass requests the user approved byte for byte.
+    /// </summary>
+    public static async Task<IReadOnlyList<byte[]>> ExchangeAsync(ulong address, byte[] request, TimeSpan window)
+    {
+        using var device = await BluetoothLEDevice.FromBluetoothAddressAsync(address)
+            ?? throw new InvalidOperationException($"Device {BleSighting.FormatAddress(address)} not reachable.");
+
+        var servicesResult = await device.GetGattServicesForUuidAsync(ConfigService, BluetoothCacheMode.Uncached);
+        var service = servicesResult.Services.FirstOrDefault()
+            ?? throw new InvalidOperationException($"Service 0xFFE0 not found ({servicesResult.Status}).");
+        using (service)
+        {
+            var charsResult = await service.GetCharacteristicsForUuidAsync(CommandCharacteristic, BluetoothCacheMode.Uncached);
+            var characteristic = charsResult.Characteristics.FirstOrDefault()
+                ?? throw new InvalidOperationException($"Characteristic 0xFFE2 not found ({charsResult.Status}).");
+
+            var received = new List<byte[]>();
+            void OnValueChanged(GattCharacteristic sender, GattValueChangedEventArgs e)
+            {
+                lock (received)
+                {
+                    received.Add(ToBytes(e.CharacteristicValue));
+                }
+            }
+
+            characteristic.ValueChanged += OnValueChanged;
+            try
+            {
+                var subscribe = await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
+                    GattClientCharacteristicConfigurationDescriptorValue.Notify);
+                if (subscribe != GattCommunicationStatus.Success)
+                {
+                    throw new InvalidOperationException($"Enabling notifications failed: {subscribe}");
+                }
+
+                var write = await characteristic.WriteValueAsync(
+                    Windows.Security.Cryptography.CryptographicBuffer.CreateFromByteArray(request),
+                    GattWriteOption.WriteWithResponse);
+                if (write != GattCommunicationStatus.Success)
+                {
+                    throw new InvalidOperationException($"Writing the request failed: {write}");
+                }
+
+                await Task.Delay(window);
+            }
+            finally
+            {
+                characteristic.ValueChanged -= OnValueChanged;
+                try
+                {
+                    await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
+                        GattClientCharacteristicConfigurationDescriptorValue.None);
+                }
+                catch
+                {
+                    // Disconnecting also ends the subscription.
+                }
+            }
+
+            lock (received)
+            {
+                return received.ToList();
+            }
+        }
+    }
+
     private static readonly Guid DeviceInformationService = Guid.Parse("0000180a-0000-1000-8000-00805f9b34fb");
     private static readonly Guid GenericAccessService = Guid.Parse("00001800-0000-1000-8000-00805f9b34fb");
     private static readonly Guid UserDescriptionDescriptor = Guid.Parse("00002901-0000-1000-8000-00805f9b34fb");

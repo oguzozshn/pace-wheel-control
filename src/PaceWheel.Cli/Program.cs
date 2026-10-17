@@ -30,6 +30,7 @@ internal static class Program
                 "ble-scan" => BleCommands.Scan(rest),
                 "ble-gatt" => BleCommands.Gatt(rest),
                 "ble-info" => BleCommands.Info(rest),
+                "ble-read-state" => BleCommands.ReadState(rest),
                 _ => UnknownCommand(command),
             };
         }
@@ -86,6 +87,8 @@ internal static class Program
                                       List GATT services/characteristics; no reads, writes or subscriptions
               ble-info --address XX:XX:XX:XX:XX:XX
                                       Read Device Information, GAP and 0x2901 descriptions (reads only)
+              ble-read-state --address XX:XX:XX:XX:XX:XX [--send]
+                                      Show (dry run) or send the read-state request 50 01 on 0xFFE2
             """);
     }
 }
