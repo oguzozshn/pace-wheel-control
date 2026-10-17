@@ -212,6 +212,21 @@ as the USB `bcdDevice`, which confirms the parsing), pedal state 2, shifter stat
 mode 1 (probably 1080°). The response is 20 bytes. Byte 1 echoes the request's sub-command.
 Exchange 2 most likely failed on timing (2 s wait right after connecting).
 
+| 5 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `51 01 00` … `51 01 05` (one at a time, waiting for each answer); `0xFFE2` CCCD `00 00` | **all six `D1` pages received**, backup saved locally in `backups/` (git-ignored) |
+
+Profile of mode 1 as read in exchange 5 (factory/current settings):
+
+| Page | Raw (after `D1 01 <page>`) | Reading |
+| --- | --- | --- |
+| 0 | `00 01 02 03 04 05 06 07 08 09 0A 0B 46 0D 11 10 00` | button map, mostly identity order |
+| 1 | `0E 0F 00 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F 20 21` | button map continued |
+| 2 | `22 23` `84 03` `64` `58` `50` `50` `50` `00` | 2 more map bytes; params[0] = 0x0384 = **900** (rotation angle?); params[1..5] = **100, 88, 80, 80, 80**; FFB reverse off |
+| 3, 4, 5 | `00 00 00 00` `55 05 55 55` `AA 0A AA AA` `FF 0F FF FF` | throttle/brake/clutch curves: points (0,0) (1365,21845) (2730,43690) (4095,65535), i.e. linear, 12-bit in → 16-bit out |
+
+The meaning of params[1..5] is still a guess from the app's `writeForce(spring, damper,
+friction, inertia)` and `writeForceFeedback(ffb, reverse)`: likely FFB 100 and spring 88 /
+damper 80 / friction 80 / inertia 80. Changing one value and reading the page back will tell.
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
@@ -226,7 +241,6 @@ Exchange 2 most likely failed on timing (2 s wait right after connecting).
    responses come on `0xFFE2`.
 3. ~~Read Device Information and `0x2901`~~ done: TI sample placeholders, no version; `0x2901`
    descriptions of `0xFFE1`/`0xFFE2`.
-4. ~~First request `50 01`~~ done (exchange 4). Next, with approval: back up the profile
-   with `51 01 00` … `51 01 05` (mode 1, pages 0-5).
+4. ~~First request `50 01`~~ done (exchange 4); ~~profile backup~~ done (exchange 5).
 5. Only then, with approval: try `53 09 01 …` to change the centering spring, and check by
    feel and with `pacewheel test`.
