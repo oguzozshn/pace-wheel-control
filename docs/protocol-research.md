@@ -245,6 +245,14 @@ DirectInput send (unlike DIPROP_FFGAIN, which the wheel ignores), and not linear
 
 | 9 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 03 01 64 00`, then `51 01 02`; `0xFFE2` CCCD `00 00` | `D3 03 01 64 00`; page 2 back to the original `22 23 84 03 64 58 50 50 50 00` |
 | 10 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 04 01 01 0E 01`, then `51 01 02`; `0xFFE2` CCCD `00 00` | `D3 04 01 01 0E 01`; page 2 now `22 23 0E 01 64 58 50 50 50 00`: **params[0] (rotation angle) 900 → 270**. Undo: `53 04 01 01 84 03` |
+| 11 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 04 01 01 84 03`, then `51 01 02`; `0xFFE2` CCCD `00 00` | `D3 04 01 01 84 03`; page 2 back to the original `22 23 84 03 64 58 50 50 50 00` |
+
+User feedback after exchange 10: at 270° the wheel stops much earlier, so the angle change
+takes effect immediately.
+
+**Confirmed page 2 parameters:** params[0] = rotation angle in degrees (u16), params[1] =
+FFB strength (0-100), params[2] = centering spring, params[3..5] = damper, friction, inertia
+(same `53 09` command; not individually tested yet).
 
 ### Not touched
 
@@ -263,5 +271,6 @@ DirectInput send (unlike DIPROP_FFGAIN, which the wheel ignores), and not linear
 4. ~~First request `50 01`~~ done (exchange 4); ~~profile backup~~ done (exchange 5).
 5. ~~Change the centering spring with `53 09 01`~~ done and undone (exchanges 6-7): it works
    and is felt.
-6. Next ideas: map params[1] (100, probably FFB strength via `53 03`) and params[0] (900,
-   rotation angle via `53 04`); then a `pacewheel spring <0-100>` style command.
+6. ~~Map FFB strength (`53 03`) and rotation angle (`53 04`)~~ done (exchanges 8-11).
+7. Next: safe `pacewheel` commands for spring, FFB strength and angle (backup first, limits,
+   readback, easy undo).
