@@ -95,7 +95,8 @@ public sealed class ForceFeedbackSession : IDisposable
         {
             case TestEffectKind.Constant:
                 guid = EffectGuid.ConstantForce;
-                parameters.Parameters = new ConstantForce { Magnitude = towardsRight ? strength : -strength };
+                // On this wheel a positive magnitude on X turns the wheel left (felt test, 2026-10-17).
+                parameters.Parameters = new ConstantForce { Magnitude = towardsRight ? -strength : strength };
                 break;
             case TestEffectKind.Sine:
                 guid = EffectGuid.Sine;
