@@ -254,6 +254,8 @@ takes effect immediately.
 FFB strength (0-100), params[2] = centering spring, params[3..5] = damper, friction, inertia
 (same `53 09` command; not individually tested yet).
 
+| 12 | 2026-10-17 | `pacewheel wheel-get`: two sessions, `50 01` then `51 01 02` (CCCD `01 00`/`00 00` each) | mode 1, firmware 0x0046, angle 900°, FFB 100, spring 88, damper 80, friction 80, inertia 80, reverse off: all original values |
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
