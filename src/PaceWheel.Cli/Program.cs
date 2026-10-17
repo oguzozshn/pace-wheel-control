@@ -32,6 +32,7 @@ internal static class Program
                 "ble-info" => BleCommands.Info(rest),
                 "ble-read-state" => BleCommands.ReadState(rest),
                 "ble-backup" => BleCommands.Backup(rest),
+                "ble-send" => BleCommands.Send(rest),
                 _ => UnknownCommand(command),
             };
         }
@@ -92,6 +93,8 @@ internal static class Program
                                       Show (dry run) or send the read-state request 50 01 (to 0xFFE1)
               ble-backup --address XX:XX:XX:XX:XX:XX [--mode n] [--out file] [--send]
                                       Show (dry run) or read all six profile pages (51 <mode> 00..05)
+              ble-send --address XX:XX:XX:XX:XX:XX --request "hex" [--request ...] [--send]
+                                      Show (dry run) or send approved 50/51/53 requests; 52 and 53 08 are refused
             """);
     }
 }

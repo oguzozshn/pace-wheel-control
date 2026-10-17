@@ -193,6 +193,72 @@ internal static class BleCommands
         return pages == 6 ? 0 : 2;
     }
 
+    /// <summary>
+    /// Sends user-approved requests given as hex, e.g. --request "53 09 01 28 50 50 50" --request "51 01 02".
+    /// Refuses the types that rewrite or wipe stored settings in bulk (52 write profile, 53 08 reset).
+    /// </summary>
+    public static int Send(string[] args)
+    {
+        ulong? address = ParseAddress(StringOption(args, "--address"));
+        var requests = new List<byte[]>();
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--request")
+            {
+                try
+                {
+                    requests.Add(Convert.FromHexString(args[i + 1].Replace(" ", "")));
+                }
+                catch (FormatException)
+                {
+                    Console.Error.WriteLine($"Not hex: {args[i + 1]}");
+                    return 1;
+                }
+            }
+        }
+        if (address is null || requests.Count == 0)
+        {
+            Console.Error.WriteLine("Usage: ble-send --address XX:XX:XX:XX:XX:XX --request \"hex bytes\" [--request ...] [--send]");
+            return 1;
+        }
+        foreach (var r in requests)
+        {
+            if (r.Length < 2 || r[0] is not (0x50 or 0x51 or 0x53) || (r[0] == 0x53 && r[1] == 0x08))
+            {
+                Console.Error.WriteLine($"Refused: {Convert.ToHexString(r)}. Only 50 (state), 51 (read profile) and 53 edit commands other than 53 08 (reset) are allowed.");
+                return 1;
+            }
+        }
+        bool send = args.Contains("--send");
+
+        Console.WriteLine($"Target: {BleSighting.FormatAddress(address.Value)}, service 0xFFE0: commands to 0xFFE1, responses on 0xFFE2");
+        Console.WriteLine("Writes, in this order:");
+        Console.WriteLine("  1. CCCD (0x2902) of 0xFFE2 <- 01 00   enable notifications");
+        for (int i = 0; i < requests.Count; i++)
+        {
+            Console.WriteLine($"  {i + 2}. 0xFFE1 <- {BitConverter.ToString(requests[i]).Replace('-', ' ')}   (wait up to 2 s for the answer, then 100 ms)");
+        }
+        Console.WriteLine($"  {requests.Count + 2}. CCCD (0x2902) of 0xFFE2 <- 00 00   disable notifications, then disconnect");
+        Console.WriteLine("Nothing else is written.");
+
+        if (!send)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Dry run: nothing was sent. Add --send to perform these steps.");
+            return 0;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Sending...");
+        var notifications = WheelBle.ExchangeAsync(address.Value, requests, TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+        Console.WriteLine($"Notifications received: {notifications.Count}");
+        foreach (var (source, n) in notifications)
+        {
+            Console.WriteLine($"  from {source}: {BitConverter.ToString(n).Replace('-', ' ')}");
+        }
+        return 0;
+    }
+
     private static bool IsCandidate(BleSighting s) =>
         s.ServiceUuids.Contains(WheelBle.ConfigService) ||
         (s.Name is string n && (n.Contains("WHEEL", StringComparison.OrdinalIgnoreCase) || n.Contains("V987", StringComparison.OrdinalIgnoreCase)));
