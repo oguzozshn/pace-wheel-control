@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using PaceWheel.Core;
 using PaceWheel.Core.DirectInput;
@@ -92,6 +93,7 @@ internal static class DirectInputCommands
         int threshold = IntOption(args, "--threshold") ?? 64;
         string? logPath = StringOption(args, "--log");
         bool dashboard = !Console.IsOutputRedirected && !Console.IsInputRedirected && !args.Contains("--changes");
+        bool raw = args.Contains("--raw");
 
         using var directInput = new WheelDirectInput();
         var instance = directInput.FindWheel();
@@ -120,9 +122,13 @@ internal static class DirectInputCommands
         var stats = new InputSessionStats();
         var clock = Stopwatch.StartNew();
         int dashboardTop = 0;
+        var rawLines = new ConcurrentQueue<string>();
+        int rawReportCount = 0;
+        string rawLast = "(none yet)";
         try
         {
             using var monitor = new InputMonitor(device, window.Handle);
+            using var rawReader = raw ? StartRawReader(clock, rawLines, r => { Interlocked.Increment(ref rawReportCount); rawLast = Convert.ToHexString(r); }) : null;
             WheelInputSnapshot? previous = null;
             WheelInputSnapshot? defaults = null;
 
@@ -131,7 +137,14 @@ internal static class DirectInputCommands
                 Console.CursorVisible = false;
                 Console.WriteLine($"{instance.InstanceName}: live input. Press Esc or Ctrl+C to quit.");
                 Console.WriteLine("(Values appear after the wheel sends its first report; nudge the wheel if nothing shows.)");
-                dashboardTop = Console.CursorTop;
+                // Reserve the dashboard's lines first, so the terminal has already scrolled
+                // and the redraw position stays valid.
+                int height = presentAxes.Count + caps.PovCount + 1 + (raw ? 1 : 0);
+                for (int i = 0; i < height; i++)
+                {
+                    Console.WriteLine();
+                }
+                dashboardTop = Math.Max(0, Console.CursorTop - height);
             }
             else
             {
@@ -147,6 +160,15 @@ internal static class DirectInputCommands
                 if (dashboard && Console.KeyAvailable && Console.ReadKey(intercept: true).Key == ConsoleKey.Escape)
                 {
                     break;
+                }
+
+                while (rawLines.TryDequeue(out var rawLine))
+                {
+                    log?.WriteLine(rawLine);
+                    if (!dashboard)
+                    {
+                        Console.WriteLine(rawLine);
+                    }
                 }
 
                 var snapshot = WheelInputSnapshot.From(monitor.Read(), presentAxes, caps.ButtonCount, caps.PovCount);
@@ -193,6 +215,10 @@ internal static class DirectInputCommands
                 if (dashboard)
                 {
                     DrawDashboard(dashboardTop, snapshot);
+                    if (raw)
+                    {
+                        Console.WriteLine($"Raw HID MI_00: {Volatile.Read(ref rawReportCount)} reports, last {rawLast}".PadRight(Console.WindowWidth - 1));
+                    }
                 }
 
                 stop.Wait(15);
@@ -210,12 +236,46 @@ internal static class DirectInputCommands
         Console.WriteLine();
         Console.WriteLine("--- Session summary");
         log?.WriteLine("# summary");
-        foreach (var line in stats.Summary())
+        var summary = stats.Summary().ToList();
+        if (raw)
+        {
+            summary.Add($"Raw HID input reports received on MI_00: {rawReportCount}");
+        }
+        foreach (var line in summary)
         {
             Console.WriteLine(line);
             log?.WriteLine(line);
         }
         return 0;
+    }
+
+    /// <summary>
+    /// Reads MI_00's raw input reports next to DirectInput and queues a line for every report that
+    /// differs from the previous one with the same report ID.
+    /// </summary>
+    private static HidInputReader? StartRawReader(Stopwatch clock, ConcurrentQueue<string> lines, Action<byte[]> onReport)
+    {
+        var mi00 = WheelHidEnumerator.Enumerate().FirstOrDefault(i => i.InterfaceNumber == 0);
+        if (mi00 is null)
+        {
+            lines.Enqueue("! --raw: MI_00 HID node not found");
+            return null;
+        }
+
+        var reader = new HidInputReader(mi00);
+        var lastById = new Dictionary<byte, byte[]>();
+        reader.ReportReceived += report =>
+        {
+            onReport(report);
+            if (!lastById.TryGetValue(report[0], out var last) || !last.AsSpan().SequenceEqual(report))
+            {
+                lastById[report[0]] = report;
+                lines.Enqueue($"{clock.ElapsedMilliseconds,7} ms  HID {Convert.ToHexString(report)}");
+            }
+        };
+        reader.Failed += ex => lines.Enqueue($"! --raw: reading stopped: {ex.Message}");
+        reader.Start();
+        return reader;
     }
 
     private static void DrawDashboard(int top, WheelInputSnapshot s)
