@@ -94,4 +94,78 @@ Questions a capture can answer right away:
 
 ## Findings
 
-_None yet._
+### The app and the transport (2026-10-17)
+
+- App: "Racing Wheel", package `com.star.v10`, version 1.0.25 (versionCode 26), from Google
+  Play. Pulled from the user's own tablet with adb (`base.apk` + `split_config.arm64_v8a.apk`)
+  and analyzed statically with REA 6.5.0 + jadx-headless-mcp 0.7.1. Nothing was executed.
+- The app bundles PXN's code (`com.pxn.v12…`), so Lite Star wheels and PXN wheels share
+  this protocol family.
+- **Transport: Bluetooth LE, not USB.** The manifest requires `android.hardware.bluetooth_le`
+  and asks for Bluetooth permissions only (no USB host). The app uses Nordic's BLE scanner
+  library. This explains why the USB HID descriptors have no configuration channel.
+- The app recognizes devices by their BLE name. **`FFB WHEEL PACE V987`** is in its list,
+  together with many sister models (V980/V981/V983/V985/V987, GT987, Vantage, Vortex, …). For
+  these models the app sets "bigger angle" mode (1080°).
+
+### GATT layout
+
+- Service `0000ffe0-0000-1000-8000-00805f9b34fb`.
+- Characteristics in the app: `0000ffe1-…`, `0000ffe2-…`, `0000ffe4-…` (same base). Which one
+  is written and which one notifies couldn't be decompiled (the GATT callback class failed in
+  JADX). A read-only GATT discovery on the real wheel will show it from the characteristic
+  properties.
+- Notifications are enabled via the standard CCCD `00002902-…`.
+- The app writes one command at a time from a queue. It waits up to 500 ms for the matching
+  notification, retries up to 3 times (2 s apart), then disconnects. After a response it
+  waits 100 ms before the next command.
+
+### Messages
+
+Byte 0 is the message type. The response has the same type with bit 7 set (`| 0x80`).
+Multi-byte values are little-endian.
+
+| Request | Response | Meaning |
+| --- | --- | --- |
+| `50 01` | `D0 …` | read state |
+| `51 <mode> <page>` | `D1 …` | read profile page 0-5 (the app reads all six) |
+| `52 <mode> <page> <data…>` (20 bytes total) | `D2 …` | write profile page |
+| `53 <cmd> …` | `D3 <cmd> …` | edit one parameter (see below) |
+| `54 …` | `D4 03 …` | testing mode / live test data |
+
+`53` edit commands, as built by the app:
+
+| Bytes | Effect | Notes |
+| --- | --- | --- |
+| `53 01 <mode>` | switch mode | modes are platform modes (PC, consoles, mobile); values not mapped yet |
+| `53 03 <mode> <ffb> <reverse>` | FFB strength + reverse FFB | `reverse` 0/1 |
+| `53 04 01 01 <angle lo> <angle hi>` | rotation angle | 16-bit degrees |
+| `53 08 <mode>` | **reset profile to defaults** | destructive, never send without approval |
+| `53 09 01 <spring> <damper> <friction> <inertia>` | firmware spring/damper/friction/inertia strength | likely controls the strong idle centering found in Phase 2 |
+
+State response `D0`: byte 2 mode, bytes 3-4 firmware version, byte 5 pedal state, byte 6
+shifter state, byte 7 angle mode.
+
+Profile pages (`D1` response / `52` write), 20 bytes each, from byte 3 on:
+- page 0 and 1: button map (one byte per key, in the app's fixed key order);
+- page 2: more button map, then `params[0]` (u16, probably the rotation angle) and
+  `params[1..5]` (one byte each; likely FFB strength, spring, damper, friction, inertia,
+  which still has to be confirmed on the device), then FFB reverse (0/1);
+- pages 3, 4, 5: throttle, brake and clutch response curves as (u16, u16) point pairs.
+
+### Not touched
+
+- The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
+  scope and must never be triggered.
+- `53 08` (reset) and `52` (write profile) change stored settings; they need explicit
+  approval of the exact bytes, and a backup of all six profile pages read first.
+
+### Next steps
+
+1. Passive BLE scan from Windows: confirm the wheel advertises as `FFB WHEEL PACE V987`.
+2. Connect and discover services, read only: find which of `ffe1/ffe2/ffe4` is write and
+   which is notify.
+3. First request, after approval of the exact bytes: `50 01` (read state). Then back up the
+   profile with `51 <mode> 00` … `51 <mode> 05`.
+4. Only then, with approval: try `53 09 01 …` to change the centering spring, and check by
+   feel and with `pacewheel test`.
