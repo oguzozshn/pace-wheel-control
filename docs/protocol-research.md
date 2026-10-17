@@ -256,6 +256,31 @@ FFB strength (0-100), params[2] = centering spring, params[3..5] = damper, frict
 
 | 12 | 2026-10-17 | `pacewheel wheel-get`: two sessions, `50 01` then `51 01 02` (CCCD `01 00`/`00 00` each) | mode 1, firmware 0x0046, angle 900°, FFB 100, spring 88, damper 80, friction 80, inertia 80, reverse off: all original values |
 
+### Button mapping (from the app's `KeyCode`, `DeviceProfile` and `writeMapping`)
+
+- **Remap one key:** `53 02 <mode> <key> <target>`; the wheel echoes `D3 02 <mode> <key> <target>`.
+- **Modes** (state byte 2): 0 waiting, **1 PC DirectInput** (this wheel), 2 PC XInput, 3 PS3 HID,
+  4 PS3 Sony, 5 PS4 wheel, 6 PS4 gamepad, 7 Xbox 360, 8 Xbox One wheel, 9 Xbox One gamepad,
+  10 Android, 11 Switch Pro.
+- **Key codes:** View 0x00, L3 0x01, R3 0x02, Menu 0x03, Up 0x04, Right 0x05, Down 0x06,
+  Left 0x07, Y 0x08, B 0x09, A 0x0A, X 0x0B, L1 0x0C, R1 0x0D, L2 0x0E, R2 0x0F, Home 0x10,
+  Share 0x11, left/right encoder 0x12/0x13, throttle 0x14, brake 0x15, clutch 0x16, GU 0x17,
+  GD 0x18, handbrake 0x19, gear switch 0x1A, gears 1-6 0x1B-0x20, gear R 0x21, LX−/LX+
+  0x22/0x23, paddles 0x24-0x27, encoders 0x28-0x2D, reset 0x2E, reserved 0x2F, mouse
+  0x30-0x32, keyboard keys 0x40-0x9C (A 0x40 … Z 0x59, 1-0 0x5A-0x63, F1-F12 0x64-0x6F,
+  modifiers 0x76-0x7D, keypad 0x8D-0x9C), unassigned 0xFE.
+- **Profile key order:** page 0 = View, L3, R3, Menu, Up, Right, Down, Left, Y, B, A, X, L1,
+  R1, Share, Home (16 bytes); page 1 = L2, R2, reserved, throttle, brake, clutch, GU, GD,
+  handbrake, gear switch, gear 1-6, gear R (17); page 2 = LX−, LX+ (2), then the parameters.
+- Physical buttons → DirectInput (Phase 1 mapping): A=B1, B=B2, X=B3, Y=B4, LB/L1=B5,
+  RB/R1=B6, LT/L2=B7, RT/R2=B8, Back=B9, Start=B10, SL=B11, SR=B12, Mode=B13,
+  gears 1-6 = B17-B22, R = B23.
+
+**Current map (backup of exchange 5):** every key maps to itself, except
+**L1 (LB) → 0x46 = keyboard `G`** (and reserved → 0x00). That's why LB and the left paddle
+never showed up as B5 in any DirectInput capture: the wheel sends the letter G through
+MI_01's keyboard collection instead. To restore it: `53 02 01 0C 0C`.
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
