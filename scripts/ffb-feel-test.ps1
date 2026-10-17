@@ -15,7 +15,10 @@
 param(
     [string]$ResultsPath = "ffb-feel-test-results.txt",
     [ValidateSet('en', 'tr')]
-    [string]$Language = 'en'
+    [string]$Language = 'en',
+    # 'full' runs every step; 'gain' only the constant-force gain persistence check.
+    [ValidateSet('full', 'gain')]
+    [string]$Suite = 'full'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,7 +59,32 @@ function Invoke-Step {
     Write-Result "[$Id] $Title :: $Question :: $answer"
 }
 
-Write-Result "# FFB feel test $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ($Language)"
+Write-Result "# FFB feel test $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ($Language, suite $Suite)"
+
+if ($Suite -eq 'gain') {
+    # Constant force is clearly felt on this wheel (sine at 20% was too weak to compare).
+    Invoke-Step -Id 'G1' `
+        -Title (T 'Constant 5% to the right, 1 s, gain untouched (reference)' 'Sabit kuvvet %5 sağa, 1 saniye, kazanca dokunulmadan (referans)') `
+        -Instructions (T 'Hold the wheel loosely and feel how hard it pushes.' 'Direksiyonu hafifçe tut ve ne kadar sert ittiğini hisset.') `
+        -Commands @(, @('test', 'constant', '--strength', '5', '--seconds', '1')) `
+        -Question (T 'Strength 0-10 (this is the reference)' 'Güç 0-10 (bu referans)')
+
+    Invoke-Step -Id 'G2' `
+        -Title (T 'Same, with gain 30% in the same process' 'Aynısı, aynı süreçte kazanç %30') `
+        -Instructions (T 'Same push, but the process sets device gain to 30% first.' 'Aynı itme, ama önce cihaz kazancı %30''a ayarlanıyor.') `
+        -Commands @(, @('test', 'constant', '--strength', '5', '--seconds', '1', '--gain', '30')) `
+        -Question (T 'Strength 0-10 compared to G1 (weaker = gain works)' 'G1''e göre güç 0-10 (daha zayıfsa kazanç çalışıyor)')
+
+    Invoke-Step -Id 'G3' `
+        -Title (T 'Gain 30% set by a process that exits, then the G1 push in a new process' 'Kazancı %30 yapan süreç kapanıyor, sonra yeni süreçte G1 itmesi') `
+        -Instructions (T 'First "gain 30" runs and exits, then the G1 effect plays without touching gain.' 'Önce "gain 30" çalışıp kapanıyor, sonra G1 efekti kazanca dokunmadan çalıyor.') `
+        -Commands @(@('gain', '30'), @('test', 'constant', '--strength', '5', '--seconds', '1')) `
+        -Question (T 'Strength 0-10 compared to G1 (same as G1 = gain did NOT persist)' 'G1''e göre güç 0-10 (G1 ile aynıysa kazanç KALICI DEĞİL)')
+
+    Write-Host ""
+    Write-Host "$(T 'All steps done. Results:' 'Tüm adımlar bitti. Sonuçlar:') $ResultsPath" -ForegroundColor Green
+    exit 0
+}
 
 Invoke-Step -Id '0' `
     -Title (T 'Idle baseline (no app holds the wheel)' 'Boşta referans (hiçbir uygulama direksiyonu tutmuyor)') `
