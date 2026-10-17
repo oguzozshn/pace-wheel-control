@@ -186,13 +186,17 @@ public static class WheelBle
     /// <summary>The app enables notifications on 0xFFE2; responses arrive there.</summary>
     public static readonly Guid ResponseCharacteristic = Guid.Parse("0000ffe2-0000-1000-8000-00805f9b34fb");
 
+    public static Task<IReadOnlyList<(string Source, byte[] Data)>> ExchangeAsync(ulong address, byte[] request, TimeSpan window, bool listenOnCommandCharacteristic = false) =>
+        ExchangeAsync(address, [request], window, listenOnCommandCharacteristic);
+
     /// <summary>
-    /// Writes one request to 0xFFE1 and collects the notifications on 0xFFE2 that arrive within
-    /// <paramref name="window"/>. Writes exactly three things: 0xFFE2's CCCD = 01 00 (notifications
-    /// on), the request to 0xFFE1, and 0xFFE2's CCCD = 00 00 at the end, also on failure.
+    /// Writes the requests to 0xFFE1 one at a time over a single connection and collects the
+    /// notifications on 0xFFE2. After each request it waits until a new notification arrives or
+    /// <paramref name="window"/> passes, then 100 ms, like the app. Besides the requests it writes
+    /// only 0xFFE2's CCCD: 01 00 at the start and 00 00 at the end, also on failure.
     /// Callers must only pass requests the user approved byte for byte.
     /// </summary>
-    public static async Task<IReadOnlyList<(string Source, byte[] Data)>> ExchangeAsync(ulong address, byte[] request, TimeSpan window, bool listenOnCommandCharacteristic = false)
+    public static async Task<IReadOnlyList<(string Source, byte[] Data)>> ExchangeAsync(ulong address, IReadOnlyList<byte[]> requests, TimeSpan window, bool listenOnCommandCharacteristic = false)
     {
         using var device = await BluetoothLEDevice.FromBluetoothAddressAsync(address)
             ?? throw new InvalidOperationException($"Device {BleSighting.FormatAddress(address)} not reachable.");
@@ -234,15 +238,36 @@ public static class WheelBle
                     throw new InvalidOperationException($"Enabling notifications failed: {subscribe}");
                 }
 
-                var write = await command.WriteValueAsync(
-                    Windows.Security.Cryptography.CryptographicBuffer.CreateFromByteArray(request),
-                    GattWriteOption.WriteWithResponse);
-                if (write != GattCommunicationStatus.Success)
+                foreach (var request in requests)
                 {
-                    throw new InvalidOperationException($"Writing the request failed: {write}");
-                }
+                    int before;
+                    lock (received)
+                    {
+                        before = received.Count;
+                    }
 
-                await Task.Delay(window);
+                    var write = await command.WriteValueAsync(
+                        Windows.Security.Cryptography.CryptographicBuffer.CreateFromByteArray(request),
+                        GattWriteOption.WriteWithResponse);
+                    if (write != GattCommunicationStatus.Success)
+                    {
+                        throw new InvalidOperationException($"Writing request {Convert.ToHexString(request)} failed: {write}");
+                    }
+
+                    var deadline = DateTime.UtcNow + window;
+                    while (DateTime.UtcNow < deadline)
+                    {
+                        lock (received)
+                        {
+                            if (received.Count > before)
+                            {
+                                break;
+                            }
+                        }
+                        await Task.Delay(20);
+                    }
+                    await Task.Delay(100);
+                }
             }
             finally
             {

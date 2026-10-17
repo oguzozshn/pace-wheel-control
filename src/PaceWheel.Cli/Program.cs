@@ -31,6 +31,7 @@ internal static class Program
                 "ble-gatt" => BleCommands.Gatt(rest),
                 "ble-info" => BleCommands.Info(rest),
                 "ble-read-state" => BleCommands.ReadState(rest),
+                "ble-backup" => BleCommands.Backup(rest),
                 _ => UnknownCommand(command),
             };
         }
@@ -89,6 +90,8 @@ internal static class Program
                                       Read Device Information, GAP and 0x2901 descriptions (reads only)
               ble-read-state --address XX:XX:XX:XX:XX:XX [--send]
                                       Show (dry run) or send the read-state request 50 01 (to 0xFFE1)
+              ble-backup --address XX:XX:XX:XX:XX:XX [--mode n] [--out file] [--send]
+                                      Show (dry run) or read all six profile pages (51 <mode> 00..05)
             """);
     }
 }

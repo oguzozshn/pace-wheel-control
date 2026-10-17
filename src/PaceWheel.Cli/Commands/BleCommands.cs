@@ -130,6 +130,69 @@ internal static class BleCommands
         return 0;
     }
 
+    /// <summary>Reads all six profile pages (51 &lt;mode&gt; &lt;page&gt;) and saves the raw answers.</summary>
+    public static int Backup(string[] args)
+    {
+        ulong? address = ParseAddress(StringOption(args, "--address"));
+        if (address is null)
+        {
+            Console.Error.WriteLine("Usage: ble-backup --address XX:XX:XX:XX:XX:XX [--mode n] [--out file] [--send]");
+            return 1;
+        }
+        int mode = IntOption(args, "--mode") ?? 1;
+        if (mode is < 0 or > 255)
+        {
+            Console.Error.WriteLine("--mode must be 0..255 (read it with ble-read-state).");
+            return 1;
+        }
+        string outPath = StringOption(args, "--out") ?? Path.Combine("backups", $"profile-mode{mode}-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+        bool send = args.Contains("--send");
+        var requests = Enumerable.Range(0, 6).Select(page => new byte[] { 0x51, (byte)mode, (byte)page }).ToList();
+
+        Console.WriteLine($"Target: {BleSighting.FormatAddress(address.Value)}, service 0xFFE0: commands to 0xFFE1, responses on 0xFFE2");
+        Console.WriteLine("Writes, in this order:");
+        Console.WriteLine("  1. CCCD (0x2902) of 0xFFE2 <- 01 00   enable notifications");
+        for (int i = 0; i < requests.Count; i++)
+        {
+            Console.WriteLine($"  {i + 2}. 0xFFE1 <- {BitConverter.ToString(requests[i]).Replace('-', ' ')}    read profile page {i} (mode {mode}); wait up to 2 s for D1, then 100 ms");
+        }
+        Console.WriteLine($"  {requests.Count + 2}. CCCD (0x2902) of 0xFFE2 <- 00 00   disable notifications, then disconnect");
+        Console.WriteLine($"Nothing else is written. Answers are saved to {outPath}.");
+
+        if (!send)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Dry run: nothing was sent. Add --send to perform these steps.");
+            return 0;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Sending...");
+        var notifications = WheelBle.ExchangeAsync(address.Value, requests, TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+
+        var lines = new List<string>
+        {
+            $"# Profile backup of {BleSighting.FormatAddress(address.Value)}, mode {mode}, {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+            "# One notification per line as received on 0xFFE2 (hex). D1 = profile page; byte 2 = page number.",
+        };
+        foreach (var (source, n) in notifications)
+        {
+            lines.Add($"{source} {Convert.ToHexString(n)}");
+        }
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        File.WriteAllLines(outPath, lines);
+
+        Console.WriteLine($"Notifications received: {notifications.Count}");
+        foreach (var (source, n) in notifications)
+        {
+            string page = n.Length >= 3 && n[0] == 0xD1 ? $"page {n[2]}" : "";
+            Console.WriteLine($"  from {source}: {Convert.ToHexString(n)}  {page}");
+        }
+        var pages = notifications.Where(x => x.Data.Length >= 3 && x.Data[0] == 0xD1).Select(x => (int)x.Data[2]).Distinct().Count();
+        Console.WriteLine($"Profile pages received: {pages} of 6. Saved to {Path.GetFullPath(outPath)}");
+        return pages == 6 ? 0 : 2;
+    }
+
     private static bool IsCandidate(BleSighting s) =>
         s.ServiceUuids.Contains(WheelBle.ConfigService) ||
         (s.Name is string n && (n.Contains("WHEEL", StringComparison.OrdinalIgnoreCase) || n.Contains("V987", StringComparison.OrdinalIgnoreCase)));
