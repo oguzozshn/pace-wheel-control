@@ -9,12 +9,17 @@ Done so far:
 - **Phase 2, force feedback via DirectInput:** gain, autocenter and low-strength test effects.
   Finding: on this wheel DIPROP_FFGAIN and DIPROP_AUTOCENTER have no measurable effect, so
   nothing persists. Persistent settings need the vendor protocol.
+- **Phase 4, vendor protocol:** the wheel is configured over **Bluetooth LE** (service 0xFFE0),
+  found by analyzing the mobile app. Rotation angle, firmware FFB strength and the centering
+  spring can now be read and changed from Windows, and the changes are stored in the wheel.
 
-Findings are in [docs/device-notes.md](docs/device-notes.md).
+Findings are in [docs/device-notes.md](docs/device-notes.md) and
+[docs/protocol-research.md](docs/protocol-research.md).
 
 Planned next:
-- Phase 3 (optional): input processing via vJoy
-- Phase 4: research into the vendor configuration protocol
+- WPF GUI (`src/PaceWheel.App`)
+- Phase 3 (optional): input processing; pedal curves and button mapping may be better done
+  through the wheel's own profile
 
 ## Supported hardware
 
@@ -61,6 +66,26 @@ Turkish prompts, `-Suite gain` for the measured gain check):
 powershell -ExecutionPolicy Bypass -File scripts/ffb-feel-test.ps1 -Suite gain
 ```
 
+Bluetooth LE commands (need a BLE adapter; keep the wheel's USB cable plugged in, since it
+doesn't advertise without it, and close the mobile app, which otherwise holds the connection):
+
+| Command | What it does |
+| --- | --- |
+| `ble-scan [--seconds n] [--active] [--all]` | Lists BLE devices that look like the wheel (passive by default) |
+| `ble-gatt [--address a]` | Lists GATT services and characteristics, discovery only |
+| `ble-info --address a` | Reads Device Information and characteristic descriptions |
+| `ble-read-state --address a [--send]` | Reads mode, firmware version, pedal/shifter state |
+| `ble-backup --address a [--send]` | Saves all six profile pages to `backups/` |
+| `wheel-get --address a` | Shows angle, FFB strength, spring, damper, friction, inertia |
+| `wheel-set --address a [--angle 90-1080] [--ffb 0-100] [--spring 0-100] [--send]` | Changes settings with backup, readback and an undo command |
+| `ble-send --address a --request "hex" [--send]` | Sends raw read/edit requests; profile writes and reset are refused |
+
+Every command that writes is a dry run unless `--send` is given.
+
+```bash
+dotnet run --project src/PaceWheel.Cli -- wheel-set --address DC:32:62:5A:92:91 --spring 60 --send
+```
+
 Examples:
 
 ```bash
@@ -84,9 +109,10 @@ Force feedback wheels can move suddenly and with real force. The FFB commands:
 Force scaling on this wheel is very non-linear: 10% constant force for 2 s already swings the
 wheel by about a third of its range. Start low and keep tests short.
 
-Phase 4 (vendor protocol research) is read-only by default. Unknown output or feature reports
-could misconfigure or brick the firmware, so the tool won't send any without the exact bytes
-being confirmed first.
+The BLE commands only send messages confirmed on the real wheel, and print every byte first
+(dry run unless `--send`). Profile writes (`52`) and the factory reset (`53 08`) are refused,
+and the app's firmware update path is never used. Back up with `ble-backup` before changing
+settings.
 
 This is an unofficial project, not affiliated with Rampage or Lite Star. Use it at your own risk.
 
