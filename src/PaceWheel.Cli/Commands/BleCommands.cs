@@ -97,11 +97,11 @@ internal static class BleCommands
         }
         bool send = args.Contains("--send");
 
-        Console.WriteLine($"Target: {BleSighting.FormatAddress(address.Value)}, service 0xFFE0, characteristic 0xFFE2");
+        Console.WriteLine($"Target: {BleSighting.FormatAddress(address.Value)}, service 0xFFE0: commands to 0xFFE1, responses on 0xFFE2");
         Console.WriteLine("Writes, in this order:");
         Console.WriteLine("  1. CCCD (0x2902) of 0xFFE2 <- 01 00   enable notifications (standard BLE subscription)");
-        Console.WriteLine($"  2. 0xFFE2 <- {BitConverter.ToString(ReadStateRequest).Replace('-', ' ')}       read state request (write with response)");
-        Console.WriteLine("  3. wait 2 s and log every notification");
+        Console.WriteLine($"  2. 0xFFE1 <- {BitConverter.ToString(ReadStateRequest).Replace('-', ' ')}       read state request (write with response)");
+        Console.WriteLine("  3. wait 2 s and log every notification on 0xFFE2");
         Console.WriteLine("  4. CCCD (0x2902) of 0xFFE2 <- 00 00   disable notifications, then disconnect");
         Console.WriteLine("Nothing else is written. Expected answer: D0 ... (mode, firmware version, pedal, shifter, angle mode).");
 

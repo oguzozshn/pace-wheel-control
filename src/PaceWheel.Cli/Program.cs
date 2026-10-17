@@ -88,7 +88,7 @@ internal static class Program
               ble-info --address XX:XX:XX:XX:XX:XX
                                       Read Device Information, GAP and 0x2901 descriptions (reads only)
               ble-read-state --address XX:XX:XX:XX:XX:XX [--send]
-                                      Show (dry run) or send the read-state request 50 01 on 0xFFE2
+                                      Show (dry run) or send the read-state request 50 01 (to 0xFFE1)
             """);
     }
 }

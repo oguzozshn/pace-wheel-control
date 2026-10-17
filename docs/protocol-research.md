@@ -170,9 +170,12 @@ Profile pages (`D1` response / `52` write), 20 bytes each, from byte 3 on:
   | 0xFFE0 | 0xFFE1 | Read, Write, Notify | 0x2901 |
 
 - `0xFFE4`, which the app also references, does not exist on this wheel.
-- **`0xFFE2` is most likely the command channel.** It's the only characteristic with Write +
-  Notify and a CCCD, which matches the app enabling notifications and writing commands to the
-  same characteristic. To be confirmed by the first exchange.
+- **Commands go to `0xFFE1`; responses come as notifications on `0xFFE2`.** JADX couldn't
+  decompile the app's GATT callback, but its smali (disassembled with the baksmali library
+  bundled in the jadx-headless-mcp JAR) shows `onServicesDiscovered` storing `0xFFE1` as the
+  write characteristic and calling `enableNotification` (CCCD `01 00`) on `0xFFE2`.
+  An earlier guess (commands and responses both on `0xFFE2`) was wrong; see the exchange log
+  below.
 
 ### Device Information and descriptions (read-only, `pacewheel ble-info`)
 
@@ -190,8 +193,16 @@ Profile pages (`D1` response / `52` write), 20 bytes each, from byte 3 on:
 - The Device Information strings are unchanged defaults of Texas Instruments' BLE sample
   firmware (SimpleBLEPeripheral / SimpleGATTProfile), so they carry no real version info. The
   firmware version has to come from the state response (`D0`, bytes 3-4).
-- In TI's sample profile, "Characteristic 4" is the notifying characteristic. Here it is also
-  writable, which supports `0xFFE2` being the command channel.
+- In TI's sample profile, "Characteristic 4" is the notifying characteristic, which matches
+  `0xFFE2` carrying the responses. "Characteristic 1" (`0xFFE1`) is the command input.
+
+### Exchange log
+
+Every write to the wheel's configuration channel, in order, each approved byte for byte:
+
+| # | Date | Writes | Result |
+| --- | --- | --- | --- |
+| 1 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE2` ← `50 01`; `0xFFE2` CCCD `00 00` | writes accepted, **no notification within 2 s**. `50 01` went to the response characteristic by mistake (wrong guess); no visible change on the wheel |
 
 ### Not touched
 
@@ -203,11 +214,12 @@ Profile pages (`D1` response / `52` write), 20 bytes each, from byte 3 on:
 ### Next steps
 
 1. ~~BLE scan from Windows~~ done: the wheel advertises as `FFB WHEEL PACE V987`.
-2. ~~Read-only GATT discovery~~ done: `0xFFE2` (Write + Notify + CCCD) is the likely command
-   channel.
+2. ~~Read-only GATT discovery~~ done; the app's smali shows commands go to `0xFFE1` and
+   responses come on `0xFFE2`.
 3. ~~Read Device Information and `0x2901`~~ done: TI sample placeholders, no version; `0x2901`
    descriptions of `0xFFE1`/`0xFFE2`.
-4. First request, after approval of the exact bytes: `50 01` (read state). Then back up the
+4. First request, after approval of the exact bytes: `50 01` to `0xFFE1` (read state), with
+   notifications on `0xFFE2`. Then back up the
    profile with `51 <mode> 00` … `51 <mode> 05`.
 5. Only then, with approval: try `53 09 01 …` to change the centering spring, and check by
    feel and with `pacewheel test`.

@@ -180,13 +180,16 @@ public static class WheelBle
         return results;
     }
 
-    /// <summary>Command characteristic (Write + Notify + CCCD), see docs/protocol-research.md.</summary>
-    public static readonly Guid CommandCharacteristic = Guid.Parse("0000ffe2-0000-1000-8000-00805f9b34fb");
+    /// <summary>The app writes its commands to 0xFFE1 (smali of the app's onServicesDiscovered).</summary>
+    public static readonly Guid CommandCharacteristic = Guid.Parse("0000ffe1-0000-1000-8000-00805f9b34fb");
+
+    /// <summary>The app enables notifications on 0xFFE2; responses arrive there.</summary>
+    public static readonly Guid ResponseCharacteristic = Guid.Parse("0000ffe2-0000-1000-8000-00805f9b34fb");
 
     /// <summary>
-    /// Sends one request on 0xFFE2 and collects the notifications that arrive within
-    /// <paramref name="window"/>. Writes exactly three things: CCCD = 01 00 (notifications on),
-    /// the request, and CCCD = 00 00 (notifications off) at the end, also on failure.
+    /// Writes one request to 0xFFE1 and collects the notifications on 0xFFE2 that arrive within
+    /// <paramref name="window"/>. Writes exactly three things: 0xFFE2's CCCD = 01 00 (notifications
+    /// on), the request to 0xFFE1, and 0xFFE2's CCCD = 00 00 at the end, also on failure.
     /// Callers must only pass requests the user approved byte for byte.
     /// </summary>
     public static async Task<IReadOnlyList<byte[]>> ExchangeAsync(ulong address, byte[] request, TimeSpan window)
@@ -199,9 +202,12 @@ public static class WheelBle
             ?? throw new InvalidOperationException($"Service 0xFFE0 not found ({servicesResult.Status}).");
         using (service)
         {
-            var charsResult = await service.GetCharacteristicsForUuidAsync(CommandCharacteristic, BluetoothCacheMode.Uncached);
-            var characteristic = charsResult.Characteristics.FirstOrDefault()
-                ?? throw new InvalidOperationException($"Characteristic 0xFFE2 not found ({charsResult.Status}).");
+            var commandResult = await service.GetCharacteristicsForUuidAsync(CommandCharacteristic, BluetoothCacheMode.Uncached);
+            var command = commandResult.Characteristics.FirstOrDefault()
+                ?? throw new InvalidOperationException($"Characteristic 0xFFE1 not found ({commandResult.Status}).");
+            var responseResult = await service.GetCharacteristicsForUuidAsync(ResponseCharacteristic, BluetoothCacheMode.Uncached);
+            var characteristic = responseResult.Characteristics.FirstOrDefault()
+                ?? throw new InvalidOperationException($"Characteristic 0xFFE2 not found ({responseResult.Status}).");
 
             var received = new List<byte[]>();
             void OnValueChanged(GattCharacteristic sender, GattValueChangedEventArgs e)
@@ -222,7 +228,7 @@ public static class WheelBle
                     throw new InvalidOperationException($"Enabling notifications failed: {subscribe}");
                 }
 
-                var write = await characteristic.WriteValueAsync(
+                var write = await command.WriteValueAsync(
                     Windows.Security.Cryptography.CryptographicBuffer.CreateFromByteArray(request),
                     GattWriteOption.WriteWithResponse);
                 if (write != GattCommunicationStatus.Success)
