@@ -23,6 +23,10 @@ internal static class Program
                 "di-info" => DirectInputCommands.Info(Console.Out),
                 "monitor" => DirectInputCommands.Monitor(rest),
                 "notes" => NotesCommand.Run(rest),
+                "ffb-status" => ForceFeedbackCommands.Status(rest),
+                "gain" => ForceFeedbackCommands.Gain(rest),
+                "autocenter" => ForceFeedbackCommands.AutoCenter(rest),
+                "test" => ForceFeedbackCommands.Test(rest),
                 _ => UnknownCommand(command),
             };
         }
@@ -58,6 +62,19 @@ internal static class Program
                   --changes           Print change lines instead of the live dashboard
                   --raw               Also read MI_00's raw HID input reports (shared, read-only)
               notes [--path <file>]   Regenerate the diagnostic block in docs/device-notes.md
+
+            Force feedback (acquires the wheel exclusively while running; Esc or Ctrl+C stops):
+              ffb-status              Show FFB gain, autocenter and device FFB state
+              gain <0-100>            Set DIPROP_FFGAIN
+              autocenter on|off [--hold <s>]
+                                      Set DIPROP_AUTOCENTER, optionally keep the device held to feel it
+              test <constant|spring|damper|sine> [options]
+                                      Play one test effect on the wheel axis
+                  --strength <1-20>   Effect strength in percent (default 10, hard cap 20)
+                  --seconds <1-5>     Effect duration (default 2, hard cap 5)
+                  --gain <0-100>      Set device gain for this run
+                  --autocenter on|off Set autocenter for this run
+                  --left              Constant force pushes left instead of right
             """);
     }
 }
