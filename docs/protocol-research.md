@@ -153,6 +153,27 @@ Profile pages (`D1` response / `52` write), 20 bytes each, from byte 3 on:
   which still has to be confirmed on the device), then FFB reverse (0/1);
 - pages 3, 4, 5: throttle, brake and clutch response curves as (u16, u16) point pairs.
 
+### On the real wheel: scan and GATT discovery (2026-10-17, read-only)
+
+- `pacewheel ble-scan --active`: the wheel advertises as **`FFB WHEEL PACE V987`**, address
+  `DC:32:62:5A:92:91`, connectable, service `0xFFE0` in the advertisement. The name only
+  arrives in the scan response, so a passive scan doesn't show it. While the mobile app is
+  connected, the wheel doesn't advertise at all; close the app first.
+- `pacewheel ble-gatt` (discovery only, no reads/writes/subscriptions):
+
+  | Service | Characteristic | Properties | Descriptors |
+  | --- | --- | --- | --- |
+  | 0x1800 GAP | 0x2A00, 0x2A01, 0x2A04, 0x2AA6 | Read | |
+  | 0x1801 GATT | 0x2A05 | Indicate | 0x2902 |
+  | 0x180A Device Information | 0x2A23-0x2A2A, 0x2A50 | Read | |
+  | **0xFFE0** | **0xFFE2** | **Write, Notify** | 0x2902 (CCCD), 0x2901 (user description) |
+  | 0xFFE0 | 0xFFE1 | Read, Write, Notify | 0x2901 |
+
+- `0xFFE4`, which the app also references, does not exist on this wheel.
+- **`0xFFE2` is most likely the command channel.** It's the only characteristic with Write +
+  Notify and a CCCD, which matches the app enabling notifications and writing commands to the
+  same characteristic. To be confirmed by the first exchange.
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
@@ -162,10 +183,12 @@ Profile pages (`D1` response / `52` write), 20 bytes each, from byte 3 on:
 
 ### Next steps
 
-1. Passive BLE scan from Windows: confirm the wheel advertises as `FFB WHEEL PACE V987`.
-2. Connect and discover services, read only: find which of `ffe1/ffe2/ffe4` is write and
-   which is notify.
-3. First request, after approval of the exact bytes: `50 01` (read state). Then back up the
+1. ~~BLE scan from Windows~~ done: the wheel advertises as `FFB WHEEL PACE V987`.
+2. ~~Read-only GATT discovery~~ done: `0xFFE2` (Write + Notify + CCCD) is the likely command
+   channel.
+3. Optional, read-only: read Device Information (firmware revision, model) and the `0x2901`
+   descriptions of `0xFFE1`/`0xFFE2`.
+4. First request, after approval of the exact bytes: `50 01` (read state). Then back up the
    profile with `51 <mode> 00` … `51 <mode> 05`.
-4. Only then, with approval: try `53 09 01 …` to change the centering spring, and check by
+5. Only then, with approval: try `53 09 01 …` to change the centering spring, and check by
    feel and with `pacewheel test`.
