@@ -46,7 +46,7 @@ dotnet run --project src/PaceWheel.Cli -- list
 | `list` | Lists every HID node of the wheel with its usage page/usage, report lengths and whether user mode can open it |
 | `descriptor [--hex-only]` | Dumps each node's report descriptor as hex plus a decoded item tree and a per-report size table |
 | `di-info` | DirectInput view: capabilities, properties (FFB gain, autocenter), every object, every supported effect type |
-| `monitor [--seconds n] [--threshold n] [--log file] [--changes]` | Live view of all axes, POV and buttons. Esc or Ctrl+C quits and prints a session summary |
+| `monitor [--seconds n] [--threshold n] [--log file] [--changes] [--raw]` | Live view of all axes, POV and buttons; `--raw` also logs MI_00 raw input reports. Esc or Ctrl+C quits and prints a session summary |
 | `notes [--path file]` | Regenerates the diagnostic block at the bottom of `docs/device-notes.md` |
 | `ffb-status` | Shows FFB gain, autocenter and the device FFB state |
 | `gain <0-100>` | Sets DIPROP_FFGAIN (no measurable effect on this wheel) |
