@@ -48,6 +48,26 @@ public sealed record WheelSettings(int Mode, int FirmwareVersion, int AngleDegre
     public byte[] SpringCommand(int spring) =>
         [0x53, 0x09, 0x01, (byte)CheckPercent(spring, nameof(spring)), (byte)Damper, (byte)Friction, (byte)Inertia];
 
+    /// <summary>The edit commands that change only the requested values, keeping the rest of this profile.</summary>
+    public IReadOnlyList<byte[]> BuildChangeCommands(int? angle, int? ffb, int? spring)
+    {
+        var commands = new List<byte[]>();
+        if (angle is int a && a != AngleDegrees) commands.Add(AngleCommand(a));
+        if (ffb is int f && f != FfbStrength) commands.Add(FfbCommand(f));
+        if (spring is int s && s != Spring) commands.Add(SpringCommand(s));
+        return commands;
+    }
+
+    /// <summary>Sends approved change commands, then reads the settings back.</summary>
+    public static async Task<WheelSettings> ApplyAsync(ulong address, IReadOnlyList<byte[]> commands)
+    {
+        if (commands.Count > 0)
+        {
+            await WheelBle.ExchangeAsync(address, commands, TimeSpan.FromSeconds(2));
+        }
+        return await ReadAsync(address);
+    }
+
     public override string ToString() =>
         $"mode {Mode}, firmware 0x{FirmwareVersion:X4}, angle {AngleDegrees}°, FFB {FfbStrength}, spring {Spring}, damper {Damper}, friction {Friction}, inertia {Inertia}, FFB reverse {(FfbReverse ? "on" : "off")}";
 

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>PaceWheelApp</AssemblyName>
+    <RootNamespace>PaceWheel.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PaceWheel.Core\PaceWheel.Core.csproj" />
+  </ItemGroup>
+
+</Project>

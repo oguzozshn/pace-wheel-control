@@ -16,8 +16,11 @@ Done so far:
 Findings are in [docs/device-notes.md](docs/device-notes.md) and
 [docs/protocol-research.md](docs/protocol-research.md).
 
+- **GUI** (`src/PaceWheel.App`, WPF): live input view (steering, pedals, D-pad, buttons, gear)
+  and sliders for rotation angle, FFB strength and centering spring. Every change shows the
+  exact bytes and asks for confirmation, saves a backup, reads the result back and can be undone.
+
 Planned next:
-- WPF GUI (`src/PaceWheel.App`)
 - Phase 3 (optional): input processing; pedal curves and button mapping may be better done
   through the wheel's own profile
 
@@ -86,6 +89,12 @@ Every command that writes is a dry run unless `--send` is given.
 dotnet run --project src/PaceWheel.Cli -- wheel-set --address DC:32:62:5A:92:91 --spring 60 --send
 ```
 
+GUI:
+
+```bash
+dotnet run --project src/PaceWheel.App
+```
+
 Examples:
 
 ```bash
@@ -121,6 +130,7 @@ This is an unofficial project, not affiliated with Rampage or Lite Star. Use it 
 ```
 src/PaceWheel.Core   library: HID enumeration + descriptor parser, DirectInput access
 src/PaceWheel.Cli    console tool (pacewheel)
+src/PaceWheel.App    WPF GUI (PaceWheelApp)
 docs/                device findings and protocol research notes
 ```
 
