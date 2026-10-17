@@ -96,12 +96,15 @@ internal static class BleCommands
             return 1;
         }
         bool send = args.Contains("--send");
+        bool listenFfe1 = args.Contains("--listen-ffe1");
+        int wait = Math.Clamp(IntOption(args, "--wait") ?? 2, 1, 10);
 
         Console.WriteLine($"Target: {BleSighting.FormatAddress(address.Value)}, service 0xFFE0: commands to 0xFFE1, responses on 0xFFE2");
         Console.WriteLine("Writes, in this order:");
         Console.WriteLine("  1. CCCD (0x2902) of 0xFFE2 <- 01 00   enable notifications (standard BLE subscription)");
         Console.WriteLine($"  2. 0xFFE1 <- {BitConverter.ToString(ReadStateRequest).Replace('-', ' ')}       read state request (write with response)");
-        Console.WriteLine("  3. wait 2 s and log every notification on 0xFFE2");
+        string ffe1Note = listenFfe1 ? " and 0xFFE1 (handler only, nothing written for 0xFFE1)" : "";
+        Console.WriteLine($"  3. wait {wait} s and log every notification on 0xFFE2{ffe1Note}");
         Console.WriteLine("  4. CCCD (0x2902) of 0xFFE2 <- 00 00   disable notifications, then disconnect");
         Console.WriteLine("Nothing else is written. Expected answer: D0 ... (mode, firmware version, pedal, shifter, angle mode).");
 
@@ -114,11 +117,11 @@ internal static class BleCommands
 
         Console.WriteLine();
         Console.WriteLine("Sending...");
-        var notifications = WheelBle.ExchangeAsync(address.Value, ReadStateRequest, TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+        var notifications = WheelBle.ExchangeAsync(address.Value, ReadStateRequest, TimeSpan.FromSeconds(wait), listenFfe1).GetAwaiter().GetResult();
         Console.WriteLine($"Notifications received: {notifications.Count}");
-        foreach (var n in notifications)
+        foreach (var (source, n) in notifications)
         {
-            Console.WriteLine($"  {Convert.ToHexString(n)}");
+            Console.WriteLine($"  from {source}: {Convert.ToHexString(n)}");
             if (n.Length >= 8 && n[0] == 0xD0)
             {
                 Console.WriteLine($"    state: mode {n[2]}, version 0x{n[3] | (n[4] << 8):X4}, pedal state {n[5]}, shifter state {n[6]}, angle mode {n[7]}");

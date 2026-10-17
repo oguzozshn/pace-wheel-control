@@ -192,7 +192,7 @@ public static class WheelBle
     /// on), the request to 0xFFE1, and 0xFFE2's CCCD = 00 00 at the end, also on failure.
     /// Callers must only pass requests the user approved byte for byte.
     /// </summary>
-    public static async Task<IReadOnlyList<byte[]>> ExchangeAsync(ulong address, byte[] request, TimeSpan window)
+    public static async Task<IReadOnlyList<(string Source, byte[] Data)>> ExchangeAsync(ulong address, byte[] request, TimeSpan window, bool listenOnCommandCharacteristic = false)
     {
         using var device = await BluetoothLEDevice.FromBluetoothAddressAsync(address)
             ?? throw new InvalidOperationException($"Device {BleSighting.FormatAddress(address)} not reachable.");
@@ -209,16 +209,22 @@ public static class WheelBle
             var characteristic = responseResult.Characteristics.FirstOrDefault()
                 ?? throw new InvalidOperationException($"Characteristic 0xFFE2 not found ({responseResult.Status}).");
 
-            var received = new List<byte[]>();
+            var received = new List<(string, byte[])>();
             void OnValueChanged(GattCharacteristic sender, GattValueChangedEventArgs e)
             {
                 lock (received)
                 {
-                    received.Add(ToBytes(e.CharacteristicValue));
+                    received.Add((ShortUuid(sender.Uuid), ToBytes(e.CharacteristicValue)));
                 }
             }
 
             characteristic.ValueChanged += OnValueChanged;
+            // 0xFFE1 has Notify but no CCCD, so nothing can be written to subscribe; a handler is
+            // only attached in case the stack delivers its notifications anyway.
+            if (listenOnCommandCharacteristic)
+            {
+                command.ValueChanged += OnValueChanged;
+            }
             try
             {
                 var subscribe = await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
@@ -241,6 +247,7 @@ public static class WheelBle
             finally
             {
                 characteristic.ValueChanged -= OnValueChanged;
+                command.ValueChanged -= OnValueChanged;
                 try
                 {
                     await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(

@@ -205,6 +205,12 @@ Every write to the wheel's configuration channel, in order, each approved byte f
 | 1 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE2` ← `50 01`; `0xFFE2` CCCD `00 00` | writes accepted, **no notification within 2 s**. `50 01` went to the response characteristic by mistake (wrong guess); no visible change on the wheel |
 | 2 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `50 01`; `0xFFE2` CCCD `00 00` | writes accepted, **no notification within 2 s**. Wheel connected over USB at the same time; mobile app closed |
 | 3 | 2026-10-17 | none: with USB unplugged (power adapter only) the wheel was unreachable and a 15 s active scan didn't see it advertising | the BLE module seems to need USB power or to be off without a USB host |
+| 4 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `50 01`; `0xFFE2` CCCD `00 00` (handler also on `0xFFE1`, nothing written there), 5 s wait, USB connected | **answer on `0xFFE2`:** `D0 01 01 46 00 02 02 01` + 12 zero bytes. Nothing on `0xFFE1` |
+
+Exchange 4 decoded with the app's layout: mode 1, firmware version `0x0046` (the same value
+as the USB `bcdDevice`, which confirms the parsing), pedal state 2, shifter state 2, angle
+mode 1 (probably 1080°). The response is 20 bytes. Byte 1 echoes the request's sub-command.
+Exchange 2 most likely failed on timing (2 s wait right after connecting).
 
 ### Not touched
 
@@ -220,8 +226,7 @@ Every write to the wheel's configuration channel, in order, each approved byte f
    responses come on `0xFFE2`.
 3. ~~Read Device Information and `0x2901`~~ done: TI sample placeholders, no version; `0x2901`
    descriptions of `0xFFE1`/`0xFFE2`.
-4. First request, after approval of the exact bytes: `50 01` to `0xFFE1` (read state), with
-   notifications on `0xFFE2`. Then back up the
-   profile with `51 <mode> 00` … `51 <mode> 05`.
+4. ~~First request `50 01`~~ done (exchange 4). Next, with approval: back up the profile
+   with `51 01 00` … `51 01 05` (mode 1, pages 0-5).
 5. Only then, with approval: try `53 09 01 …` to change the centering spring, and check by
    feel and with `pacewheel test`.
