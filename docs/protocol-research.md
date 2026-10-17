@@ -281,6 +281,8 @@ FFB strength (0-100), params[2] = centering spring, params[3..5] = damper, frict
 never showed up as B5 in any DirectInput capture: the wheel sends the letter G through
 MI_01's keyboard collection instead. To restore it: `53 02 01 0C 0C`.
 
+| 13 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 02 01 0C 0C`, then `51 01 00`; `0xFFE2` CCCD `00 00` | `D3 02 01 0C 0C`; page 0 now `00 01 … 0B 0C 0D 11 10`: **L1 (LB) mapped back to L1**. Undo (back to keyboard G): `53 02 01 0C 46` |
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
