@@ -174,6 +174,62 @@ ID |X    |Y    |Z    |Rx   |Ry   |Rz   |Sl   |hat|buttons |pad  |
   ignore them. It looks like an undeclared sensor reading, perhaps motor temperature or current,
   or a raw centering sensor. Phase 4 can check whether it reacts to force feedback load.
 
+## Phase 2: force feedback via DirectInput
+
+Tested on 2026-10-17 with `scripts/ffb-feel-test.ps1`. Each step ran in a separate `pacewheel`
+process, and the user rated what they felt (0-10). The wheel's DC power adapter must be
+plugged in: on USB power alone, nothing is felt at all (first run). That is the same
+symptom as "FFB broken", so check it first.
+
+### Facts checked in software
+
+- Exclusive + background acquire works through the hidden message-only window.
+- DIPROP_FFGAIN and DIPROP_AUTOCENTER can be set while acquired and read back correctly.
+- A new process always starts at DirectInput's defaults: gain 100%, autocenter on. These
+  properties belong to one process's DirectInput device object, not to the wheel.
+- **Exclusive access is not exclusive across processes here.** While one process held the wheel
+  with `DISCL_EXCLUSIVE | DISCL_BACKGROUND`, a second process acquired it the same way without
+  error. A game won't be locked out by this tool, but both would send PID reports to the
+  same device, and the last one wins.
+- The wheel never sends the PID State Report (input report 0x02). DirectInput's device state
+  therefore always reads `Empty, Stopped`. The actuator/power flags are never set, and
+  effects report `Playing` from DirectInput's own bookkeeping only.
+
+### Felt results (power adapter connected)
+
+| Step | What ran | Felt |
+| --- | --- | --- |
+| 0 | nothing (idle) | **strong self-centering, 10/10**: the firmware's own centering spring, always on |
+| 1 | sine 20%, gain 100% | felt, very weak (1/10) |
+| 2 | sine 20%, gain 30% in the same process | 3/10 |
+| 3 | `gain 30` exits, then sine 20% in a new process | 5/10 |
+| 4 | autocenter **off**, held 8 s | centering unchanged (10/10) |
+| 5 | after that process exited | centering unchanged (10/10) |
+| 6 | autocenter on, held 8 s | centering unchanged (10/10) |
+| 7 | constant 10% "right" (positive magnitude) | **turned left**, strong (10/10) |
+| 8 | spring 15% | nothing beyond the idle centering (0/10) |
+| 9 | damper 15% | nothing (0/10) |
+
+### Conclusions
+
+- **Autocenter:** DIPROP_AUTOCENTER does nothing on this wheel. The centering felt at idle
+  comes from the firmware and stays at full strength whether autocenter is on or off, during
+  and after the process. So there is no autocenter setting to persist through DirectInput.
+  Changing the firmware centering strength needs the vendor protocol (Phase 4).
+- **Gain:** not settled. The sine at 20% was too weak to rate reliably, and the ratings
+  (1 → 3 → 5) rose instead of falling, which looks like rating noise rather than a gain
+  effect. A retest with the constant force, which the wheel clearly plays, is needed before
+  saying whether gain works or persists. By DirectInput design, a game sets its own gain in
+  its own process anyway (default 100%), so a gain set by this tool can't be relied on in
+  games either way.
+- **Effects:** constant force and sine work. Spring and damper (condition effects) had no
+  felt effect at 15%. This matches the known quirk of these wheels, though the strong firmware
+  centering may hide a weak spring.
+- **Direction:** a positive constant-force magnitude on X turns the wheel **left**, so the
+  sign is inverted compared to the usual "positive = right". `pacewheel test constant` takes
+  this into account. Note also that 10% constant force was felt as strong (10/10) while 20%
+  sine was barely felt, so scaling differs a lot between effect types. Keep tests short.
+
 ## Raw diagnostic output
 
 <!-- BEGIN GENERATED: pacewheel notes -->
