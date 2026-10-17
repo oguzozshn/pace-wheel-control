@@ -232,6 +232,11 @@ damper 80 / friction 80 / inertia 80. Changing one value and reading the page ba
 Exchange 6 confirms the `53 09 01` layout: `<spring> <damper> <friction> <inertia>` map to
 params[2..5], and the change is stored in the profile. Undo: `53 09 01 58 50 50 50`.
 
+User feedback after exchange 6: **the idle centering became clearly weaker.** So params[2]
+is the firmware centering spring that DirectInput couldn't reach in Phase 2.
+
+| 7 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 09 01 58 50 50 50`, then `51 01 02`; `0xFFE2` CCCD `00 00` | page 2 back to `22 23 84 03 64 58 50 50 50 00` (original). The `D3` echo didn't arrive this time; the readback confirms the value |
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
@@ -247,5 +252,7 @@ params[2..5], and the change is stored in the profile. Undo: `53 09 01 58 50 50 
 3. ~~Read Device Information and `0x2901`~~ done: TI sample placeholders, no version; `0x2901`
    descriptions of `0xFFE1`/`0xFFE2`.
 4. ~~First request `50 01`~~ done (exchange 4); ~~profile backup~~ done (exchange 5).
-5. Only then, with approval: try `53 09 01 …` to change the centering spring, and check by
-   feel and with `pacewheel test`.
+5. ~~Change the centering spring with `53 09 01`~~ done and undone (exchanges 6-7): it works
+   and is felt.
+6. Next ideas: map params[1] (100, probably FFB strength via `53 03`) and params[0] (900,
+   rotation angle via `53 04`); then a `pacewheel spring <0-100>` style command.
