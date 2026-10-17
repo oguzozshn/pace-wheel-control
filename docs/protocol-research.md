@@ -243,6 +243,8 @@ Effect of exchange 8, measured with `pacewheel test constant --strength 10 --sec
 ~21,000-23,700 at FFB 100 in Phase 2. The firmware FFB strength scales what games and
 DirectInput send (unlike DIPROP_FFGAIN, which the wheel ignores), and not linearly.
 
+| 9 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 03 01 64 00`, then `51 01 02`; `0xFFE2` CCCD `00 00` | `D3 03 01 64 00`; page 2 back to the original `22 23 84 03 64 58 50 50 50 00` |
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
