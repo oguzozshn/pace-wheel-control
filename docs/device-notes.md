@@ -212,16 +212,37 @@ symptom as "FFB broken", so check it first.
 
 ### Conclusions
 
+- **Persistence, the Phase 2 question:** neither setting persists, because neither has any
+  effect in the first place. Persistent configuration (centering strength, gain, rotation
+  range) is only possible through the vendor protocol, which is Phase 4.
 - **Autocenter:** DIPROP_AUTOCENTER does nothing on this wheel. The centering felt at idle
   comes from the firmware and stays at full strength whether autocenter is on or off, during
   and after the process. So there is no autocenter setting to persist through DirectInput.
   Changing the firmware centering strength needs the vendor protocol (Phase 4).
-- **Gain:** not settled. The sine at 20% was too weak to rate reliably, and the ratings
-  (1 → 3 → 5) rose instead of falling, which looks like rating noise rather than a gain
-  effect. A retest with the constant force, which the wheel clearly plays, is needed before
-  saying whether gain works or persists. By DirectInput design, a game sets its own gain in
-  its own process anyway (default 100%), so a gain set by this tool can't be relied on in
-  games either way.
+- **Gain: DIPROP_FFGAIN has no measurable effect on this wheel.** Felt ratings turned out
+  unreliable (twice the 30% runs were rated stronger than 100%). So the final test measured
+  the steering travel during a 10% / 2 s constant force with `pacewheel test`, hands resting
+  lightly on the wheel (`-Suite gain`):
+
+  | Run | Right push (X) | Left push (X) |
+  | --- | --- | --- |
+  | gain 100% | 32767 → 53811 (21,044) | 53774 → 31998 (21,776) |
+  | gain 30%, same process | 32860 → 55238 (22,378) | 55238 → 34970 (20,268) |
+  | gain 30% set by a process that exited | 32767 → 55157 (22,390) | 55057 → 31364 (23,693) |
+
+  Travel is the same, about a third of the full range, at 30% and 100% gain. Note that
+  32767 starts are DirectInput's placeholder before the first report; `test` now waits for
+  a real report. Either pid.dll doesn't send the PID Device Gain report, or the firmware
+  ignores it. A USB capture (Phase 4) can tell which. In both cases there is no gain setting
+  that could persist, and a game's own gain is ignored the same way.
+- **Force scaling is very non-linear:** 5% constant force for 1 s is not felt at all, while
+  10% for 2 s swings the wheel by about a third of its range. Keep constant-force tests at
+  10% or less and short.
+- **Centering after effects (open):** after a 10% push the wheel stayed where it was pushed
+  (X ≈ 55,238) for more than 4 s instead of returning to center. The user also reported that
+  "the center drifted left". At idle, before any test, the firmware centering is strong. It
+  looks like the firmware pauses its own centering spring after a PC force feedback session,
+  for at least a few seconds. How long, and what restores it, is still to be checked.
 - **Effects:** constant force and sine work. Spring and damper (condition effects) had no
   felt effect at 15%. This matches the known quirk of these wheels, though the strong firmware
   centering may hide a weak spring.
