@@ -236,6 +236,7 @@ User feedback after exchange 6: **the idle centering became clearly weaker.** So
 is the firmware centering spring that DirectInput couldn't reach in Phase 2.
 
 | 7 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 09 01 58 50 50 50`, then `51 01 02`; `0xFFE2` CCCD `00 00` | page 2 back to `22 23 84 03 64 58 50 50 50 00` (original). The `D3` echo didn't arrive this time; the readback confirms the value |
+| 8 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 03 01 32 00`, then `51 01 02`; `0xFFE2` CCCD `00 00` | `D3 03 01 32 00` (accepted); page 2 now `22 23 84 03 32 58 50 50 50 00`: **params[1] (FFB strength) 100 → 50**, nothing else changed. Undo: `53 03 01 64 00` |
 
 ### Not touched
 
