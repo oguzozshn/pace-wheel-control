@@ -244,6 +244,7 @@ Effect of exchange 8, measured with `pacewheel test constant --strength 10 --sec
 DirectInput send (unlike DIPROP_FFGAIN, which the wheel ignores), and not linearly.
 
 | 9 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 03 01 64 00`, then `51 01 02`; `0xFFE2` CCCD `00 00` | `D3 03 01 64 00`; page 2 back to the original `22 23 84 03 64 58 50 50 50 00` |
+| 10 | 2026-10-17 | `0xFFE2` CCCD `01 00`; `0xFFE1` ← `53 04 01 01 0E 01`, then `51 01 02`; `0xFFE2` CCCD `00 00` | `D3 04 01 01 0E 01`; page 2 now `22 23 0E 01 64 58 50 50 50 00`: **params[0] (rotation angle) 900 → 270**. Undo: `53 04 01 01 84 03` |
 
 ### Not touched
 
