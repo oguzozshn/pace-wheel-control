@@ -122,6 +122,94 @@ public static class WheelBle
         return services;
     }
 
+    /// <summary>
+    /// Reads, without writing anything: every readable characteristic of Device Information
+    /// (0x180A) and GAP (0x1800), plus the 0x2901 user description descriptors of the
+    /// configuration service. The configuration characteristics' own values are not read.
+    /// </summary>
+    public static async Task<IReadOnlyList<(string What, byte[]? Value, string? Error)>> ReadInfoAsync(ulong address)
+    {
+        using var device = await BluetoothLEDevice.FromBluetoothAddressAsync(address)
+            ?? throw new InvalidOperationException($"Device {BleSighting.FormatAddress(address)} not reachable.");
+
+        var results = new List<(string, byte[]?, string?)>();
+        var servicesResult = await device.GetGattServicesAsync(BluetoothCacheMode.Uncached);
+        if (servicesResult.Status != GattCommunicationStatus.Success)
+        {
+            throw new InvalidOperationException($"Service discovery failed: {servicesResult.Status}");
+        }
+
+        foreach (var service in servicesResult.Services)
+        {
+            using (service)
+            {
+                bool infoService = service.Uuid == DeviceInformationService || service.Uuid == GenericAccessService;
+                if (!infoService && service.Uuid != ConfigService)
+                {
+                    continue;
+                }
+                var chars = await service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
+                if (chars.Status != GattCommunicationStatus.Success)
+                {
+                    results.Add(($"{ShortUuid(service.Uuid)}", null, chars.Status.ToString()));
+                    continue;
+                }
+                foreach (var c in chars.Characteristics)
+                {
+                    if (infoService && c.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Read))
+                    {
+                        var read = await c.ReadValueAsync(BluetoothCacheMode.Uncached);
+                        results.Add(($"{ShortUuid(service.Uuid)}/{ShortUuid(c.Uuid)} {CharacteristicName(c.Uuid)}",
+                            read.Status == GattCommunicationStatus.Success ? ToBytes(read.Value) : null,
+                            read.Status == GattCommunicationStatus.Success ? null : read.Status.ToString()));
+                    }
+                    else if (service.Uuid == ConfigService)
+                    {
+                        var descriptors = await c.GetDescriptorsForUuidAsync(UserDescriptionDescriptor, BluetoothCacheMode.Uncached);
+                        foreach (var d in descriptors.Descriptors)
+                        {
+                            var read = await d.ReadValueAsync(BluetoothCacheMode.Uncached);
+                            results.Add(($"{ShortUuid(service.Uuid)}/{ShortUuid(c.Uuid)} user description (0x2901)",
+                                read.Status == GattCommunicationStatus.Success ? ToBytes(read.Value) : null,
+                                read.Status == GattCommunicationStatus.Success ? null : read.Status.ToString()));
+                        }
+                    }
+                }
+            }
+        }
+        return results;
+    }
+
+    private static readonly Guid DeviceInformationService = Guid.Parse("0000180a-0000-1000-8000-00805f9b34fb");
+    private static readonly Guid GenericAccessService = Guid.Parse("00001800-0000-1000-8000-00805f9b34fb");
+    private static readonly Guid UserDescriptionDescriptor = Guid.Parse("00002901-0000-1000-8000-00805f9b34fb");
+
+    private static byte[] ToBytes(Windows.Storage.Streams.IBuffer buffer)
+    {
+        var bytes = new byte[buffer.Length];
+        using var reader = Windows.Storage.Streams.DataReader.FromBuffer(buffer);
+        reader.ReadBytes(bytes);
+        return bytes;
+    }
+
+    private static string CharacteristicName(Guid uuid) => ShortUuid(uuid) switch
+    {
+        "0x2A00" => "Device Name",
+        "0x2A01" => "Appearance",
+        "0x2A04" => "Peripheral Preferred Connection Parameters",
+        "0x2AA6" => "Central Address Resolution",
+        "0x2A23" => "System ID",
+        "0x2A24" => "Model Number",
+        "0x2A25" => "Serial Number",
+        "0x2A26" => "Firmware Revision",
+        "0x2A27" => "Hardware Revision",
+        "0x2A28" => "Software Revision",
+        "0x2A29" => "Manufacturer Name",
+        "0x2A2A" => "IEEE 11073-20601 Regulatory Certification",
+        "0x2A50" => "PnP ID",
+        _ => "",
+    };
+
     /// <summary>Short name for 16-bit Bluetooth base UUIDs (0000xxxx-0000-1000-8000-00805f9b34fb).</summary>
     public static string ShortUuid(Guid uuid)
     {

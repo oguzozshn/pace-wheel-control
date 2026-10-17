@@ -174,6 +174,25 @@ Profile pages (`D1` response / `52` write), 20 bytes each, from byte 3 on:
   Notify and a CCCD, which matches the app enabling notifications and writing commands to the
   same characteristic. To be confirmed by the first exchange.
 
+### Device Information and descriptions (read-only, `pacewheel ble-info`)
+
+| Attribute | Value |
+| --- | --- |
+| Device Name (0x2A00) | `FFB WHEEL PACE V987` |
+| Preferred connection params (0x2A04) | interval 100-200 ms, latency 0, timeout 10 s |
+| Model / Serial / Firmware / Hardware / Software / Manufacturer (0x2A24-0x2A29) | literally `Model Number`, `Serial Number`, `Firmware Revision`, … |
+| Regulatory (0x2A2A) | `FE 00` + `experimental` |
+| System ID (0x2A23) | all zero |
+| PnP ID (0x2A50) | `01 D7 07 00 00 10 01` |
+| 0xFFE2 user description | `Characteristic 4` |
+| 0xFFE1 user description | `Characteristic 1` |
+
+- The Device Information strings are unchanged defaults of Texas Instruments' BLE sample
+  firmware (SimpleBLEPeripheral / SimpleGATTProfile), so they carry no real version info. The
+  firmware version has to come from the state response (`D0`, bytes 3-4).
+- In TI's sample profile, "Characteristic 4" is the notifying characteristic. Here it is also
+  writable, which supports `0xFFE2` being the command channel.
+
 ### Not touched
 
 - The bundled PXN code has a firmware update (OTA) screen. Firmware update paths are out of
@@ -186,7 +205,7 @@ Profile pages (`D1` response / `52` write), 20 bytes each, from byte 3 on:
 1. ~~BLE scan from Windows~~ done: the wheel advertises as `FFB WHEEL PACE V987`.
 2. ~~Read-only GATT discovery~~ done: `0xFFE2` (Write + Notify + CCCD) is the likely command
    channel.
-3. Optional, read-only: read Device Information (firmware revision, model) and the `0x2901`
+3. ~~Read Device Information and `0x2901`~~ done: TI sample placeholders, no version; `0x2901`
    descriptions of `0xFFE1`/`0xFFE2`.
 4. First request, after approval of the exact bytes: `50 01` (read state). Then back up the
    profile with `51 <mode> 00` … `51 <mode> 05`.

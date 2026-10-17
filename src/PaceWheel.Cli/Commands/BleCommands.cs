@@ -61,6 +61,29 @@ internal static class BleCommands
         return 0;
     }
 
+    public static int Info(string[] args)
+    {
+        ulong? address = ParseAddress(StringOption(args, "--address"));
+        if (address is null)
+        {
+            Console.Error.WriteLine("Usage: ble-info --address XX:XX:XX:XX:XX:XX (see ble-scan --active)");
+            return 1;
+        }
+
+        Console.WriteLine($"Reading Device Information, GAP and 0x2901 descriptions of {BleSighting.FormatAddress(address.Value)} (reads only, nothing is written)...");
+        foreach (var (what, value, error) in WheelBle.ReadInfoAsync(address.Value).GetAwaiter().GetResult())
+        {
+            if (value is null)
+            {
+                Console.WriteLine($"  {what}: (read failed: {error})");
+                continue;
+            }
+            string text = new string(System.Text.Encoding.UTF8.GetString(value).Select(ch => char.IsControl(ch) ? '.' : ch).ToArray());
+            Console.WriteLine($"  {what}: \"{text}\"  hex {Convert.ToHexString(value)}");
+        }
+        return 0;
+    }
+
     private static bool IsCandidate(BleSighting s) =>
         s.ServiceUuids.Contains(WheelBle.ConfigService) ||
         (s.Name is string n && (n.Contains("WHEEL", StringComparison.OrdinalIgnoreCase) || n.Contains("V987", StringComparison.OrdinalIgnoreCase)));

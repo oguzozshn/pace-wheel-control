@@ -29,6 +29,7 @@ internal static class Program
                 "test" => ForceFeedbackCommands.Test(rest),
                 "ble-scan" => BleCommands.Scan(rest),
                 "ble-gatt" => BleCommands.Gatt(rest),
+                "ble-info" => BleCommands.Info(rest),
                 _ => UnknownCommand(command),
             };
         }
@@ -83,6 +84,8 @@ internal static class Program
                                       List BLE devices that look like the wheel (passive by default)
               ble-gatt [--address XX:XX:XX:XX:XX:XX]
                                       List GATT services/characteristics; no reads, writes or subscriptions
+              ble-info --address XX:XX:XX:XX:XX:XX
+                                      Read Device Information, GAP and 0x2901 descriptions (reads only)
             """);
     }
 }
