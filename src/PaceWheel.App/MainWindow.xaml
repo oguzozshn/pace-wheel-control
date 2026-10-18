@@ -76,17 +76,21 @@
             <!-- Wheel settings over BLE -->
             <ui:Card Grid.Column="1" Margin="8" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
                 <StackPanel>
-                    <TextBlock Text="DİREKSİYON AYARLARI" Style="{StaticResource SectionTitle}" />
-                    <TextBlock Text="Ayarlar Bluetooth üzerinden direksiyona kaydedilir. USB kablosu takılı olsun ve mobil uygulama kapalı olsun."
+                    <TextBlock Text="DİREKSİYON (BLUETOOTH)" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Değişiklikler Bluetooth üzerinden direksiyona kaydedilir. USB kablosu takılı olsun ve mobil uygulama kapalı olsun."
                                TextWrapping="Wrap" Style="{StaticResource SmallLabel}" FontSize="12" Margin="0,0,0,12" />
 
-                    <DockPanel Margin="0,0,0,18">
+                    <DockPanel Margin="0,0,0,12">
                         <ui:Button x:Name="ReadButton" DockPanel.Dock="Right" Content="Oku" Margin="8,0,0,0"
                                    Appearance="Secondary" Icon="{ui:SymbolIcon ArrowDownload24}" Click="OnRead" />
                         <ui:Button x:Name="FindButton" DockPanel.Dock="Right" Content="Bul" Margin="8,0,0,0"
                                    Appearance="Secondary" Icon="{ui:SymbolIcon Search24}" Click="OnFind" />
                         <ui:TextBox x:Name="AddressBox" PlaceholderText="Bluetooth adresi (ör. DC:32:62:5A:92:91)" />
                     </DockPanel>
+
+                    <TabControl>
+                    <TabItem Header="Ayarlar">
+                    <StackPanel Margin="0,14,0,0">
 
                     <controls:SettingSlider x:Name="AngleSetting" Title="Dönüş açısı" Unit="°" Minimum="90" Maximum="1080" Step="90" />
                     <controls:SettingSlider x:Name="FfbSetting" Title="FFB gücü" Unit="" Minimum="0" Maximum="100" Step="5" />
@@ -100,9 +104,40 @@
                                    IsEnabled="False" Click="OnApply" Padding="18,6" />
                         <ui:Button x:Name="UndoButton" Content="Geri al…" Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUndo24}"
                                    IsEnabled="False" Click="OnUndo" Margin="10,0,0,0" Padding="18,6" />
-                        <ui:ProgressRing x:Name="BusyRing" IsIndeterminate="True" Width="22" Height="22" Margin="14,0,0,0"
-                                         Visibility="Collapsed" />
                     </StackPanel>
+                    </StackPanel>
+                    </TabItem>
+
+                    <TabItem Header="Tuş atama">
+                    <StackPanel Margin="0,14,0,0">
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource SmallLabel}" FontSize="12" Margin="0,0,0,10"
+                                   Text="Her fiziksel tuşun direksiyonda hangi koda gönderildiğini gösterir. Bir tuşu klavye tuşuna, fare tuşuna ya da başka bir oyun tuşuna atayabilirsin." />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <ui:Button x:Name="ReadMapButton" Content="Haritayı oku" Appearance="Secondary"
+                                       Icon="{ui:SymbolIcon ArrowDownload24}" Click="OnReadMap" />
+                            <TextBlock x:Name="MapModeText" VerticalAlignment="Center" Margin="12,0,0,0" Style="{StaticResource SmallLabel}" FontSize="12" />
+                        </StackPanel>
+                        <ScrollViewer Height="300" VerticalScrollBarVisibility="Auto">
+                            <Grid x:Name="MapGrid" Margin="0,0,10,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="80" />
+                                </Grid.ColumnDefinitions>
+                            </Grid>
+                        </ScrollViewer>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <ui:Button x:Name="ApplyMapButton" Content="Değişiklikleri uygula…" Appearance="Primary"
+                                       Icon="{ui:SymbolIcon Checkmark24}" IsEnabled="False" Click="OnApplyMap" Padding="18,6" />
+                            <ui:Button x:Name="UndoMapButton" Content="Geri al…" Appearance="Secondary"
+                                       Icon="{ui:SymbolIcon ArrowUndo24}" IsEnabled="False" Click="OnUndoMap" Margin="10,0,0,0" Padding="18,6" />
+                        </StackPanel>
+                    </StackPanel>
+                    </TabItem>
+                    </TabControl>
+
+                    <ui:ProgressRing x:Name="BusyRing" IsIndeterminate="True" Width="22" Height="22" Margin="0,12,0,0"
+                                     HorizontalAlignment="Left" Visibility="Collapsed" />
                 </StackPanel>
             </ui:Card>
         </Grid>

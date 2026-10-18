@@ -33,6 +33,9 @@ public partial class MainWindow : FluentWindow
 
     private WheelSettings? _current;
     private WheelSettings? _beforeLastChange;
+    private WheelKeyMap? _keyMap;
+    private readonly Dictionary<byte, ComboBox> _mapCombos = new();
+    private List<(byte Key, byte Old, byte New)>? _lastMapChanges;
     private bool _busy;
 
     public MainWindow()
@@ -208,35 +211,8 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        string bytes = string.Join(Environment.NewLine, commands.Select(c => "0xFFE1 ← " + BitConverter.ToString(c).Replace('-', ' ')));
-        var dialog = new ContentDialog(DialogHost)
+        if (!await ConfirmBytesAsync(what, commands, "Ardından ayarlar geri okunup kontrol edilir (50 01, 51 <mod> 02). Önce yedek alınır. Başka hiçbir şey yazılmaz."))
         {
-            Title = $"{what}: baytları onayla",
-            Content = new StackPanel
-            {
-                Children =
-                {
-                    new TextBlock { Text = "Direksiyona sırayla şunlar yazılacak:", Margin = new Thickness(0, 0, 0, 8) },
-                    new System.Windows.Controls.TextBox
-                    {
-                        Text = $"0xFFE2 CCCD ← 01 00{Environment.NewLine}{bytes}{Environment.NewLine}0xFFE2 CCCD ← 00 00",
-                        IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13, TextWrapping = TextWrapping.NoWrap,
-                    },
-                    new TextBlock
-                    {
-                        Text = "Ardından ayarlar geri okunup kontrol edilir (50 01, 51 <mod> 02). Önce yedek alınır. Başka hiçbir şey yazılmaz.",
-                        TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), Opacity = 0.75,
-                    },
-                },
-            },
-            PrimaryButtonText = "Gönder",
-            CloseButtonText = "Vazgeç",
-            DefaultButton = ContentDialogButton.Close,
-            PrimaryButtonAppearance = ControlAppearance.Primary,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-        {
-            Log($"{what} iptal edildi; hiçbir şey gönderilmedi.");
             return;
         }
 
@@ -253,6 +229,215 @@ public partial class MainWindow : FluentWindow
             Log($"Geri okundu: {after}");
             Notify($"{what} tamam", "Ayarlar direksiyona yazıldı ve geri okunarak doğrulandı.", ControlAppearance.Success);
         });
+    }
+
+    /// <summary>Shows every byte that will be written and returns true only on an explicit "Gönder".</summary>
+    private async Task<bool> ConfirmBytesAsync(string what, IReadOnlyList<byte[]> commands, string afterwards)
+    {
+        string bytes = string.Join(Environment.NewLine, commands.Select(c => "0xFFE1 ← " + BitConverter.ToString(c).Replace('-', ' ')));
+        var dialog = new ContentDialog(DialogHost)
+        {
+            Title = $"{what}: baytları onayla",
+            Content = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock { Text = "Direksiyona sırayla şunlar yazılacak:", Margin = new Thickness(0, 0, 0, 8) },
+                    new System.Windows.Controls.TextBox
+                    {
+                        Text = $"0xFFE2 CCCD ← 01 00{Environment.NewLine}{bytes}{Environment.NewLine}0xFFE2 CCCD ← 00 00",
+                        IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 13, TextWrapping = TextWrapping.NoWrap,
+                        MaxHeight = 260, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    },
+                    new TextBlock { Text = afterwards, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), Opacity = 0.75 },
+                },
+            },
+            PrimaryButtonText = "Gönder",
+            CloseButtonText = "Vazgeç",
+            DefaultButton = ContentDialogButton.Close,
+            PrimaryButtonAppearance = ControlAppearance.Primary,
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            return true;
+        }
+        Log($"{what} iptal edildi; hiçbir şey gönderilmedi.");
+        return false;
+    }
+
+    // ---- Button mapping ---------------------------------------------------------------------
+
+    private async void OnReadMap(object sender, RoutedEventArgs e)
+    {
+        if (ParseAddress() is not ulong address)
+        {
+            return;
+        }
+        await RunBusy("Tuş haritası okunuyor (51 <mod> 00..02)…", async () =>
+        {
+            int mode = _current?.Mode ?? (await WheelSettings.ReadAsync(address)).Mode;
+            ShowKeyMap(await WheelKeyMap.ReadAsync(address, mode));
+            Log($"Tuş haritası okundu (mod {mode}).");
+        });
+    }
+
+    private async void OnApplyMap(object sender, RoutedEventArgs e)
+    {
+        if (_keyMap is null || ParseAddress() is not ulong address)
+        {
+            return;
+        }
+        var changes = new List<(byte Key, byte Old, byte New)>();
+        foreach (var (key, combo) in _mapCombos)
+        {
+            byte old = _keyMap.TargetOf(key) ?? key;
+            if (combo.SelectedValue is byte target && target != old)
+            {
+                changes.Add((key, old, target));
+            }
+        }
+        await SendKeyMapChanges(address, changes, "Tuş atama");
+    }
+
+    private async void OnUndoMap(object sender, RoutedEventArgs e)
+    {
+        if (_keyMap is null || _lastMapChanges is null || ParseAddress() is not ulong address)
+        {
+            return;
+        }
+        var changes = _lastMapChanges.Select(c => (c.Key, c.New, c.Old)).ToList();
+        await SendKeyMapChanges(address, changes, "Tuş atamayı geri al");
+    }
+
+    private async Task SendKeyMapChanges(ulong address, List<(byte Key, byte Old, byte New)> changes, string what)
+    {
+        if (_keyMap is null || changes.Count == 0)
+        {
+            Notify("Değişiklik yok", "Seçimler direksiyondaki haritayla aynı.", ControlAppearance.Secondary);
+            return;
+        }
+        var map = _keyMap;
+        var commands = changes.Select(c => map.RemapCommand(c.Key, c.New)).ToList();
+        string summary = string.Join(", ", changes.Select(c => $"{KeyName(c.Key)} → {WheelKeyMap.NameOf(c.New)}"));
+        if (!await ConfirmBytesAsync(what, commands, $"{summary}. Ardından tuş haritası geri okunup kontrol edilir (51 <mod> 00..02). Önce yedek alınır."))
+        {
+            return;
+        }
+
+        await RunBusy($"{what}: {commands.Count} komut gönderiliyor…", async () =>
+        {
+            Log($"Yedek kaydedildi: {SaveMapBackup(address, map)}");
+            foreach (var c in commands)
+            {
+                Log($"Gönderiliyor: {BitConverter.ToString(c).Replace('-', ' ')}");
+            }
+            await WheelBle.ExchangeAsync(address, commands, TimeSpan.FromSeconds(2));
+            var after = await WheelKeyMap.ReadAsync(address, map.Mode);
+            bool ok = changes.All(c => after.TargetOf(c.Key) == c.New);
+            _lastMapChanges = changes;
+            ShowKeyMap(after);
+            Log(ok ? $"Geri okundu, doğrulandı: {summary}" : "UYARI: geri okunan harita istenenle uyuşmuyor.");
+            Notify(ok ? $"{what} tamam" : "Doğrulanamadı",
+                ok ? "Tuş haritası direksiyona yazıldı ve geri okunarak doğrulandı." : "Geri okunan harita istenenle uyuşmuyor; kaydı kontrol et.",
+                ok ? ControlAppearance.Success : ControlAppearance.Danger);
+        });
+    }
+
+    private void ShowKeyMap(WheelKeyMap map)
+    {
+        _keyMap = map;
+        _mapCombos.Clear();
+        MapGrid.Children.Clear();
+        MapGrid.RowDefinitions.Clear();
+        MapModeText.Text = $"mod {map.Mode}";
+
+        int row = 0;
+        foreach (var key in WheelKeyMap.RemappableKeys)
+        {
+            if (map.TargetOf(key.Code) is not byte current)
+            {
+                continue;
+            }
+            MapGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var name = new TextBlock { Text = key.Name, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 4, 8, 4) };
+            var combo = new ComboBox
+            {
+                ItemsSource = WheelKeyMap.Targets,
+                DisplayMemberPath = nameof(WheelKey.Name),
+                SelectedValuePath = nameof(WheelKey.Code),
+                SelectedValue = current,
+                Margin = new Thickness(0, 4, 8, 4),
+            };
+            var badge = new TextBlock { VerticalAlignment = VerticalAlignment.Center, FontSize = 12 };
+            byte keyCode = key.Code;
+            UpdateMapBadge(badge, keyCode, current, current);
+            combo.SelectionChanged += (_, _) =>
+            {
+                UpdateMapBadge(badge, keyCode, current, combo.SelectedValue is byte b ? b : current);
+                UpdateMapApplyState();
+            };
+
+            Grid.SetRow(name, row);
+            Grid.SetColumn(name, 0);
+            Grid.SetRow(combo, row);
+            Grid.SetColumn(combo, 1);
+            Grid.SetRow(badge, row);
+            Grid.SetColumn(badge, 2);
+            MapGrid.Children.Add(name);
+            MapGrid.Children.Add(combo);
+            MapGrid.Children.Add(badge);
+            _mapCombos[key.Code] = combo;
+            row++;
+        }
+        UpdateMapApplyState();
+    }
+
+    private void UpdateMapBadge(TextBlock badge, byte key, byte onWheel, byte selected)
+    {
+        if (selected != onWheel)
+        {
+            badge.Text = "● değişti";
+            badge.Foreground = (Brush)FindResource("RacingAccentBrush");
+        }
+        else if (onWheel != key)
+        {
+            badge.Text = "özel";
+            badge.Foreground = (Brush)FindResource("MutedTextBrush");
+        }
+        else
+        {
+            badge.Text = "";
+        }
+    }
+
+    private void UpdateMapApplyState()
+    {
+        if (ApplyMapButton is null || UndoMapButton is null)
+        {
+            return;
+        }
+        ApplyMapButton.IsEnabled = !_busy && _keyMap is not null &&
+            _mapCombos.Any(kv => kv.Value.SelectedValue is byte b && b != (_keyMap.TargetOf(kv.Key) ?? kv.Key));
+        UndoMapButton.IsEnabled = !_busy && _lastMapChanges is not null;
+    }
+
+    private static string KeyName(byte code) =>
+        WheelKeyMap.RemappableKeys.FirstOrDefault(k => k.Code == code)?.Name ?? $"0x{code:X2}";
+
+    private static string SaveMapBackup(ulong address, WheelKeyMap map)
+    {
+        string dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PaceWheel", "backups");
+        Directory.CreateDirectory(dir);
+        string path = System.IO.Path.Combine(dir, $"keymap-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+        var lines = new List<string> { $"# {BleSighting.FormatAddress(address)} mode {map.Mode} {DateTime.Now:yyyy-MM-dd HH:mm:ss}" };
+        foreach (var k in WheelKeyMap.RemappableKeys)
+        {
+            byte target = map.TargetOf(k.Code) ?? 0;
+            lines.Add($"{k.Name} (0x{k.Code:X2}) -> 0x{target:X2} {WheelKeyMap.NameOf(target)}");
+        }
+        File.WriteAllLines(path, lines);
+        return path;
     }
 
     private static string SaveBackup(ulong address, WheelSettings settings)
@@ -300,8 +485,9 @@ public partial class MainWindow : FluentWindow
             return;
         }
         _busy = true;
-        FindButton.IsEnabled = ReadButton.IsEnabled = false;
+        FindButton.IsEnabled = ReadButton.IsEnabled = ReadMapButton.IsEnabled = false;
         UpdateApplyState();
+        UpdateMapApplyState();
         BusyRing.Visibility = Visibility.Visible;
         Log(message);
         try
@@ -317,9 +503,10 @@ public partial class MainWindow : FluentWindow
         finally
         {
             _busy = false;
-            FindButton.IsEnabled = ReadButton.IsEnabled = true;
+            FindButton.IsEnabled = ReadButton.IsEnabled = ReadMapButton.IsEnabled = true;
             BusyRing.Visibility = Visibility.Collapsed;
             UpdateApplyState();
+            UpdateMapApplyState();
         }
     }
 
