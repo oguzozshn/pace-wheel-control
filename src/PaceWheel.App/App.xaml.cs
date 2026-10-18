@@ -6,8 +6,8 @@ namespace PaceWheel.App;
 
 public partial class App : Application
 {
-    /// <summary>Racing orange, used as the Fluent accent color.</summary>
-    public static readonly Color AccentColor = Color.FromRgb(0xFF, 0x6A, 0x00);
+    /// <summary>Cyan accent, used as the Fluent accent color (matches Theme/Racing.xaml).</summary>
+    public static readonly Color AccentColor = Color.FromRgb(0x00, 0xB4, 0xFF);
 
     protected override void OnStartup(StartupEventArgs e)
     {

@@ -3,152 +3,229 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:controls="clr-namespace:PaceWheel.App.Controls"
-                 Title="Pace Wheel Control" Height="760" Width="1040" MinWidth="900" MinHeight="680"
-                 WindowBackdropType="Mica" ExtendsContentIntoTitleBar="True" WindowStartupLocation="CenterScreen"
+                 Title="Pace Wheel Control" Height="800" Width="1180" MinWidth="980" MinHeight="720"
+                 WindowBackdropType="None" Background="{StaticResource WindowBackgroundBrush}"
+                 ExtendsContentIntoTitleBar="True" WindowStartupLocation="CenterScreen"
                  Loaded="OnLoaded" Closed="OnClosed">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="Pace Wheel Control" />
+        <ui:TitleBar Grid.Row="0" Title="PACE WHEEL CONTROL" />
 
-        <!-- Header: device name and connection badges -->
-        <DockPanel Grid.Row="1" Margin="24,4,24,12">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <Border CornerRadius="12" Padding="12,4" Background="{StaticResource TrackBrush}" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse x:Name="UsbDot" Width="9" Height="9" Fill="{StaticResource OffBrush}" Margin="0,0,7,0" VerticalAlignment="Center" />
-                        <TextBlock x:Name="UsbText" Text="USB: aranıyor" FontSize="12" />
+        <!-- Top bar: device, connection status, BLE address -->
+        <Border Grid.Row="1" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="24,6,24,12">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,18,0">
+                        <Ellipse x:Name="UsbDot" Width="8" Height="8" Fill="{StaticResource OffBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="UsbText" Text="USB: aranıyor" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+                        <Ellipse x:Name="BleDot" Width="8" Height="8" Fill="{StaticResource OffBrush}" Margin="16,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="BleText" Text="Bluetooth: bağlı değil" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
                     </StackPanel>
-                </Border>
-                <Border CornerRadius="12" Padding="12,4" Background="{StaticResource TrackBrush}">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse x:Name="BleDot" Width="9" Height="9" Fill="{StaticResource OffBrush}" Margin="0,0,7,0" VerticalAlignment="Center" />
-                        <TextBlock x:Name="BleText" Text="Bluetooth: bağlı değil" FontSize="12" />
+                    <ui:TextBox x:Name="AddressBox" Width="190" PlaceholderText="Bluetooth adresi" />
+                    <ui:Button x:Name="FindButton" Content="Bul" Margin="8,0,0,0" Appearance="Secondary"
+                               Icon="{ui:SymbolIcon Search24}" Click="OnFind" />
+                    <ui:Button x:Name="ReadButton" Content="Oku" Margin="8,0,0,0" Appearance="Primary"
+                               Icon="{ui:SymbolIcon ArrowSync24}" Click="OnRead" />
+                    <ui:ProgressRing x:Name="BusyRing" IsIndeterminate="True" Width="20" Height="20" Margin="12,0,0,0"
+                                     Visibility="Collapsed" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BackButton" Click="OnHome" Visibility="Collapsed" Cursor="Hand" Margin="0,0,14,0"
+                            Background="Transparent" BorderThickness="0" ToolTip="Ana ekran">
+                        <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="22" />
+                    </Button>
+                    <StackPanel>
+                        <TextBlock Text="RAMPAGE PACE V987" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock x:Name="DeviceSubtitle" Text="Direksiyon bekleniyor…" Style="{StaticResource SmallLabel}" />
                     </StackPanel>
-                </Border>
-            </StackPanel>
-            <StackPanel>
-                <TextBlock Text="Rampage Pace V987" FontSize="24" FontWeight="SemiBold" />
-                <TextBlock x:Name="DeviceSubtitle" Text="Direksiyon bekleniyor…" Style="{StaticResource SmallLabel}" FontSize="12" />
-            </StackPanel>
-        </DockPanel>
+                </StackPanel>
+            </DockPanel>
+        </Border>
 
-        <Grid Grid.Row="2" Margin="16,0,16,0">
+        <!-- ============ HOME: device hero + tiles ============ -->
+        <Grid x:Name="HomeView" Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.Background>
+                <RadialGradientBrush Center="0.5,0.42" GradientOrigin="0.5,0.42" RadiusX="0.55" RadiusY="0.6">
+                    <GradientStop Color="#1A1D24" Offset="0" />
+                    <GradientStop Color="#0E0F12" Offset="1" />
+                </RadialGradientBrush>
+            </Grid.Background>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <!-- Pedals on the left of the wheel, gear on the right -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,40,0">
+                    <controls:PedalBar x:Name="ClutchPedal" Label="DEBRİYAJ" BarBrush="{StaticResource ClutchBrush}" Margin="6,0" />
+                    <controls:PedalBar x:Name="BrakePedal" Label="FREN" BarBrush="{StaticResource BrakeBrush}" Margin="6,0" />
+                    <controls:PedalBar x:Name="ThrottlePedal" Label="GAZ" BarBrush="{StaticResource ThrottleBrush}" Margin="6,0" />
+                </StackPanel>
+
+                <Viewbox Width="330" Height="390">
+                    <controls:SteeringWheelView x:Name="WheelView" />
+                </Viewbox>
+
+                <StackPanel VerticalAlignment="Center" Margin="40,0,0,0" Width="200">
+                    <TextBlock Text="VİTES" Style="{StaticResource SectionTitle}" />
+                    <Border Width="84" Height="84" CornerRadius="6" HorizontalAlignment="Left"
+                            BorderBrush="{StaticResource RacingAccentBrush}" BorderThickness="1" Background="{StaticResource PanelBrush}">
+                        <TextBlock x:Name="GearText" Text="N" FontSize="44" FontWeight="Light"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="D-PAD" Style="{StaticResource SectionTitle}" Margin="0,18,0,4" />
+                    <TextBlock x:Name="PovText" Text="•" FontSize="28" Foreground="{StaticResource RacingAccentBrush}" />
+                    <TextBlock Text="DÜĞMELER" Style="{StaticResource SectionTitle}" Margin="0,14,0,6" />
+                    <UniformGrid x:Name="ButtonGrid" Columns="8" HorizontalAlignment="Left" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Tiles, like a hub's device page -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,28">
+                <Button Style="{StaticResource HubTile}" Tag="Settings" Click="OnOpenPage">
+                    <StackPanel>
+                        <ui:SymbolIcon Symbol="VehicleCar24" FontSize="34" HorizontalAlignment="Center" />
+                        <TextBlock Text="Direksiyon" HorizontalAlignment="Center" Margin="0,10,0,0" />
+                        <TextBlock Text="açı · FFB · yay" Style="{StaticResource SmallLabel}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource HubTile}" Tag="Mapping" Click="OnOpenPage">
+                    <StackPanel>
+                        <ui:SymbolIcon Symbol="Keyboard24" FontSize="34" HorizontalAlignment="Center" />
+                        <TextBlock Text="Tuş atama" HorizontalAlignment="Center" Margin="0,10,0,0" />
+                        <TextBlock Text="düğme → hedef" Style="{StaticResource SmallLabel}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource HubTile}" Tag="Log" Click="OnOpenPage">
+                    <StackPanel>
+                        <ui:SymbolIcon Symbol="DocumentBulletList24" FontSize="34" HorizontalAlignment="Center" />
+                        <TextBlock Text="İşlem kaydı" HorizontalAlignment="Center" Margin="0,10,0,0" />
+                        <TextBlock Text="gönderilen baytlar" Style="{StaticResource SmallLabel}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ============ DETAIL: left nav + page ============ -->
+        <Grid x:Name="DetailView" Grid.Row="2" Visibility="Collapsed">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="84" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Live input -->
-            <ui:Card Grid.Column="0" Margin="8" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
-                <StackPanel>
-                    <TextBlock Text="CANLI GİRİŞ" Style="{StaticResource SectionTitle}" />
-                    <controls:SteeringWheelView x:Name="WheelView" HorizontalAlignment="Center" />
+            <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,1,0">
+                <StackPanel Margin="0,12,0,0">
+                    <RadioButton x:Name="NavSettings" Style="{StaticResource NavItem}" GroupName="Nav" Tag="Settings" Checked="OnNavChecked" ToolTip="Direksiyon ayarları">
+                        <StackPanel>
+                            <ui:SymbolIcon Symbol="VehicleCar24" FontSize="24" HorizontalAlignment="Center" />
+                            <TextBlock Text="Direksiyon" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavMapping" Style="{StaticResource NavItem}" GroupName="Nav" Tag="Mapping" Checked="OnNavChecked" ToolTip="Tuş atama">
+                        <StackPanel>
+                            <ui:SymbolIcon Symbol="Keyboard24" FontSize="24" HorizontalAlignment="Center" />
+                            <TextBlock Text="Tuşlar" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavLog" Style="{StaticResource NavItem}" GroupName="Nav" Tag="Log" Checked="OnNavChecked" ToolTip="İşlem kaydı">
+                        <StackPanel>
+                            <ui:SymbolIcon Symbol="DocumentBulletList24" FontSize="24" HorizontalAlignment="Center" />
+                            <TextBlock Text="Kayıt" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </Border>
 
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
-                        <controls:PedalBar x:Name="ClutchPedal" Label="DEBRİYAJ" BarBrush="{StaticResource ClutchBrush}" Margin="8,0" />
-                        <controls:PedalBar x:Name="BrakePedal" Label="FREN" BarBrush="{StaticResource BrakeBrush}" Margin="8,0" />
-                        <controls:PedalBar x:Name="ThrottlePedal" Label="GAZ" BarBrush="{StaticResource ThrottleBrush}" Margin="8,0" />
-
-                        <StackPanel Margin="28,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="VİTES" Style="{StaticResource SmallLabel}" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                            <Border Width="72" Height="72" CornerRadius="12" Margin="0,6,0,14"
-                                    BorderBrush="{StaticResource RacingAccentBrush}" BorderThickness="2" Background="{StaticResource TrackBrush}">
-                                <TextBlock x:Name="GearText" Text="N" FontSize="38" FontWeight="Bold"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <TextBlock Text="D-PAD" Style="{StaticResource SmallLabel}" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                            <TextBlock x:Name="PovText" Text="•" FontSize="26" HorizontalAlignment="Center"
-                                       Foreground="{StaticResource RacingAccentBrush}" />
+            <Grid Grid.Column="1" Margin="32,24,32,24">
+                <!-- Page: wheel settings -->
+                <Grid x:Name="PageSettings">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MaxWidth="560" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Direksiyon ayarları" Style="{StaticResource PageTitle}" />
+                        <TextBlock Text="Bluetooth üzerinden direksiyona kaydedilir. USB kablosu takılı, mobil uygulama kapalı olmalı."
+                                   TextWrapping="Wrap" Style="{StaticResource SmallLabel}" FontSize="12" Margin="0,0,0,18" />
+                        <Border Style="{StaticResource Panel}">
+                            <StackPanel>
+                                <controls:SettingSlider x:Name="AngleSetting" Title="Dönüş açısı" Unit="°" Minimum="90" Maximum="1080" Step="90" />
+                                <controls:SettingSlider x:Name="FfbSetting" Title="FFB gücü" Unit="" Minimum="0" Maximum="100" Step="5" />
+                                <controls:SettingSlider x:Name="SpringSetting" Title="Merkezleme yayı" Unit="" Minimum="0" Maximum="100" Step="2" />
+                                <TextBlock x:Name="OtherSettingsText" Text="Sönüm / sürtünme / atalet: -" Style="{StaticResource SmallLabel}" FontSize="12" />
+                            </StackPanel>
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                            <ui:Button x:Name="ApplyButton" Content="Uygula…" Appearance="Primary" Icon="{ui:SymbolIcon Checkmark24}"
+                                       IsEnabled="False" Click="OnApply" Padding="20,7" />
+                            <ui:Button x:Name="UndoButton" Content="Geri al…" Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUndo24}"
+                                       IsEnabled="False" Click="OnUndo" Margin="10,0,0,0" Padding="20,7" />
                         </StackPanel>
                     </StackPanel>
+                    <TextBlock Grid.Column="1" Margin="40,52,0,0" TextWrapping="Wrap" Style="{StaticResource SmallLabel}" FontSize="12" MaxWidth="320"
+                               HorizontalAlignment="Left" VerticalAlignment="Top"
+                               Text="Önce üst çubuktan &quot;Bul&quot; ve &quot;Oku&quot;. Değiştirdiğin değerler &quot;● değişti&quot; ile işaretlenir. Uygula, gönderilecek baytları gösterip onay ister; yedek alır ve sonucu geri okuyarak doğrular." />
+                </Grid>
 
-                    <TextBlock Text="DÜĞMELER" Style="{StaticResource SectionTitle}" Margin="0,18,0,8" />
-                    <UniformGrid x:Name="ButtonGrid" Columns="12" HorizontalAlignment="Left" />
-                </StackPanel>
-            </ui:Card>
-
-            <!-- Wheel settings over BLE -->
-            <ui:Card Grid.Column="1" Margin="8" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
-                <StackPanel>
-                    <TextBlock Text="DİREKSİYON (BLUETOOTH)" Style="{StaticResource SectionTitle}" />
-                    <TextBlock Text="Değişiklikler Bluetooth üzerinden direksiyona kaydedilir. USB kablosu takılı olsun ve mobil uygulama kapalı olsun."
-                               TextWrapping="Wrap" Style="{StaticResource SmallLabel}" FontSize="12" Margin="0,0,0,12" />
-
-                    <DockPanel Margin="0,0,0,12">
-                        <ui:Button x:Name="ReadButton" DockPanel.Dock="Right" Content="Oku" Margin="8,0,0,0"
-                                   Appearance="Secondary" Icon="{ui:SymbolIcon ArrowDownload24}" Click="OnRead" />
-                        <ui:Button x:Name="FindButton" DockPanel.Dock="Right" Content="Bul" Margin="8,0,0,0"
-                                   Appearance="Secondary" Icon="{ui:SymbolIcon Search24}" Click="OnFind" />
-                        <ui:TextBox x:Name="AddressBox" PlaceholderText="Bluetooth adresi (ör. DC:32:62:5A:92:91)" />
-                    </DockPanel>
-
-                    <TabControl>
-                    <TabItem Header="Ayarlar">
-                    <StackPanel Margin="0,14,0,0">
-
-                    <controls:SettingSlider x:Name="AngleSetting" Title="Dönüş açısı" Unit="°" Minimum="90" Maximum="1080" Step="90" />
-                    <controls:SettingSlider x:Name="FfbSetting" Title="FFB gücü" Unit="" Minimum="0" Maximum="100" Step="5" />
-                    <controls:SettingSlider x:Name="SpringSetting" Title="Merkezleme yayı" Unit="" Minimum="0" Maximum="100" Step="2" />
-
-                    <TextBlock x:Name="OtherSettingsText" Text="Sönüm / sürtünme / atalet: -" Style="{StaticResource SmallLabel}"
-                               FontSize="12" Margin="0,0,0,18" />
-
-                    <StackPanel Orientation="Horizontal">
-                        <ui:Button x:Name="ApplyButton" Content="Uygula…" Appearance="Primary" Icon="{ui:SymbolIcon Checkmark24}"
-                                   IsEnabled="False" Click="OnApply" Padding="18,6" />
-                        <ui:Button x:Name="UndoButton" Content="Geri al…" Appearance="Secondary" Icon="{ui:SymbolIcon ArrowUndo24}"
-                                   IsEnabled="False" Click="OnUndo" Margin="10,0,0,0" Padding="18,6" />
-                    </StackPanel>
-                    </StackPanel>
-                    </TabItem>
-
-                    <TabItem Header="Tuş atama">
-                    <StackPanel Margin="0,14,0,0">
-                        <TextBlock TextWrapping="Wrap" Style="{StaticResource SmallLabel}" FontSize="12" Margin="0,0,0,10"
-                                   Text="Her fiziksel tuşun direksiyonda hangi koda gönderildiğini gösterir. Bir tuşu klavye tuşuna, fare tuşuna ya da başka bir oyun tuşuna atayabilirsin." />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <!-- Page: button mapping -->
+                <Grid x:Name="PageMapping" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Tuş atama" Style="{StaticResource PageTitle}" />
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource SmallLabel}" FontSize="12" Margin="0,0,0,14"
+                                   Text="Her fiziksel tuşun gönderdiği kod. Bir tuşu başka bir oyun tuşuna, fare tuşuna ya da klavye tuşuna atayabilirsin." />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
                             <ui:Button x:Name="ReadMapButton" Content="Haritayı oku" Appearance="Secondary"
                                        Icon="{ui:SymbolIcon ArrowDownload24}" Click="OnReadMap" />
                             <TextBlock x:Name="MapModeText" VerticalAlignment="Center" Margin="12,0,0,0" Style="{StaticResource SmallLabel}" FontSize="12" />
                         </StackPanel>
-                        <ScrollViewer Height="300" VerticalScrollBarVisibility="Auto">
-                            <Grid x:Name="MapGrid" Margin="0,0,10,0">
+                    </StackPanel>
+                    <Border Grid.Row="1" Style="{StaticResource Panel}" Padding="16,10">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <Grid x:Name="MapGrid" Margin="0,0,12,0" MaxWidth="760" HorizontalAlignment="Left">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="150" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="190" />
+                                    <ColumnDefinition Width="320" />
+                                    <ColumnDefinition Width="100" />
                                 </Grid.ColumnDefinitions>
                             </Grid>
                         </ScrollViewer>
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <ui:Button x:Name="ApplyMapButton" Content="Değişiklikleri uygula…" Appearance="Primary"
-                                       Icon="{ui:SymbolIcon Checkmark24}" IsEnabled="False" Click="OnApplyMap" Padding="18,6" />
-                            <ui:Button x:Name="UndoMapButton" Content="Geri al…" Appearance="Secondary"
-                                       Icon="{ui:SymbolIcon ArrowUndo24}" IsEnabled="False" Click="OnUndoMap" Margin="10,0,0,0" Padding="18,6" />
-                        </StackPanel>
+                    </Border>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,16,0,0">
+                        <ui:Button x:Name="ApplyMapButton" Content="Değişiklikleri uygula…" Appearance="Primary"
+                                   Icon="{ui:SymbolIcon Checkmark24}" IsEnabled="False" Click="OnApplyMap" Padding="20,7" />
+                        <ui:Button x:Name="UndoMapButton" Content="Geri al…" Appearance="Secondary"
+                                   Icon="{ui:SymbolIcon ArrowUndo24}" IsEnabled="False" Click="OnUndoMap" Margin="10,0,0,0" Padding="20,7" />
                     </StackPanel>
-                    </TabItem>
-                    </TabControl>
+                </Grid>
 
-                    <ui:ProgressRing x:Name="BusyRing" IsIndeterminate="True" Width="22" Height="22" Margin="0,12,0,0"
-                                     HorizontalAlignment="Left" Visibility="Collapsed" />
-                </StackPanel>
-            </ui:Card>
+                <!-- Page: operation log -->
+                <Grid x:Name="PageLog" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="İşlem kaydı" Style="{StaticResource PageTitle}" />
+                        <TextBlock Text="Direksiyona gönderilen her bayt ve okunan her cevap." Style="{StaticResource SmallLabel}" FontSize="12" Margin="0,0,0,14" />
+                    </StackPanel>
+                    <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
+                             FontFamily="Consolas" FontSize="12" TextWrapping="NoWrap" />
+                </Grid>
+            </Grid>
         </Grid>
 
-        <!-- Operation log -->
-        <Expander Grid.Row="3" Header="İşlem kaydı" Margin="24,4,24,16">
-            <TextBox x:Name="LogBox" Height="130" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
-                     FontFamily="Consolas" FontSize="11" TextWrapping="NoWrap" />
-        </Expander>
-
-        <ui:SnackbarPresenter x:Name="SnackbarHost" Grid.Row="0" Grid.RowSpan="4" VerticalAlignment="Bottom" />
-        <ui:ContentDialogHost x:Name="DialogHost" Grid.Row="0" Grid.RowSpan="4" />
+        <ui:SnackbarPresenter x:Name="SnackbarHost" Grid.Row="0" Grid.RowSpan="3" VerticalAlignment="Bottom" />
+        <ui:ContentDialogHost x:Name="DialogHost" Grid.Row="0" Grid.RowSpan="3" />
     </Grid>
 </ui:FluentWindow>

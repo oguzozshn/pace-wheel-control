@@ -60,6 +60,43 @@ public partial class MainWindow : FluentWindow
         _directInput?.Dispose();
     }
 
+    // ---- Navigation: home screen and detail pages -------------------------------------------
+
+    private void OnOpenPage(object sender, RoutedEventArgs e)
+    {
+        string page = (string)((FrameworkElement)sender).Tag;
+        HomeView.Visibility = Visibility.Collapsed;
+        DetailView.Visibility = Visibility.Visible;
+        BackButton.Visibility = Visibility.Visible;
+        var nav = page switch { "Mapping" => NavMapping, "Log" => NavLog, _ => NavSettings };
+        if (nav.IsChecked == true)
+        {
+            ShowPage(page);
+        }
+        nav.IsChecked = true;
+    }
+
+    private void OnHome(object sender, RoutedEventArgs e)
+    {
+        DetailView.Visibility = Visibility.Collapsed;
+        HomeView.Visibility = Visibility.Visible;
+        BackButton.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnNavChecked(object sender, RoutedEventArgs e) => ShowPage((string)((FrameworkElement)sender).Tag);
+
+    private void ShowPage(string page)
+    {
+        // Checked fires during InitializeComponent, before the pages exist.
+        if (PageSettings is null || PageMapping is null || PageLog is null)
+        {
+            return;
+        }
+        PageSettings.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
+        PageMapping.Visibility = page == "Mapping" ? Visibility.Visible : Visibility.Collapsed;
+        PageLog.Visibility = page == "Log" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     // ---- Live input -------------------------------------------------------------------------
 
     private void StartInput()
