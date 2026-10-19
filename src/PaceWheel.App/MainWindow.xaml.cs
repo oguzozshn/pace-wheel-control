@@ -37,6 +37,28 @@ public partial class MainWindow : FluentWindow
     private readonly Dictionary<byte, ComboBox> _mapCombos = new();
     private List<(byte Key, byte Old, byte New)>? _lastMapChanges;
     private bool _busy;
+    private readonly List<TestTile> _testTiles = new();
+    private bool[] _lastButtons = [];
+
+    // Button test layout: key code, grid row, grid column (column -1 = centered under the wheel).
+    private static readonly (byte Key, string Label, int Row, int Column)[] TestLayout =
+    [
+        (0x0E, "L2", 0, 0), (0x0C, "L1", 0, 1), (0x0D, "R1", 0, 2), (0x0F, "R2", 0, 3),
+        (0x04, "▲", 1, 0), (0x06, "▼", 2, 0), (0x07, "◀", 3, 0), (0x05, "▶", 4, 0),
+        (0x0A, "A", 1, 3), (0x09, "B", 2, 3), (0x0B, "X", 3, 3), (0x08, "Y", 4, 3),
+        (0x00, "View", 5, 0), (0x10, "Home", 5, -1), (0x03, "Menu", 5, 3),
+        (0x01, "L3", 6, 0), (0x11, "Share", 6, -1), (0x02, "R3", 6, 3),
+    ];
+
+    private static readonly (byte Key, string Label)[] TestGears =
+    [
+        (0x1B, "1"), (0x1C, "2"), (0x1D, "3"), (0x1E, "4"), (0x1F, "5"), (0x20, "6"), (0x21, "R"),
+    ];
+
+    private sealed record TestTile(byte Key, Border Box, TextBlock Mapping)
+    {
+        public bool Seen { get; set; }
+    }
 
     public MainWindow()
     {
@@ -45,6 +67,7 @@ public partial class MainWindow : FluentWindow
         AngleSetting.ValueChanged += (_, _) => UpdateApplyState();
         FfbSetting.ValueChanged += (_, _) => UpdateApplyState();
         SpringSetting.ValueChanged += (_, _) => UpdateApplyState();
+        CreateTestTiles();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -68,7 +91,7 @@ public partial class MainWindow : FluentWindow
         HomeView.Visibility = Visibility.Collapsed;
         DetailView.Visibility = Visibility.Visible;
         BackButton.Visibility = Visibility.Visible;
-        var nav = page switch { "Mapping" => NavMapping, "Log" => NavLog, _ => NavSettings };
+        var nav = page switch { "Mapping" => NavMapping, "Test" => NavTest, "Log" => NavLog, _ => NavSettings };
         if (nav.IsChecked == true)
         {
             ShowPage(page);
@@ -88,12 +111,13 @@ public partial class MainWindow : FluentWindow
     private void ShowPage(string page)
     {
         // Checked fires during InitializeComponent, before the pages exist.
-        if (PageSettings is null || PageMapping is null || PageLog is null)
+        if (PageSettings is null || PageMapping is null || PageTest is null || PageLog is null)
         {
             return;
         }
         PageSettings.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
         PageMapping.Visibility = page == "Mapping" ? Visibility.Visible : Visibility.Collapsed;
+        PageTest.Visibility = page == "Test" ? Visibility.Visible : Visibility.Collapsed;
         PageLog.Visibility = page == "Log" ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -160,6 +184,7 @@ public partial class MainWindow : FluentWindow
 
         var axes = s.Axes.ToDictionary(a => a.Name, a => a.Value);
         WheelView.SetPosition(axes.GetValueOrDefault("X", 32767));
+        TestWheelView.SetPosition(axes.GetValueOrDefault("X", 32767));
         ThrottlePedal.SetValue(axes.GetValueOrDefault("Z"));
         BrakePedal.SetValue(axes.GetValueOrDefault("Rz"));
         ClutchPedal.SetValue(axes.GetValueOrDefault("S0"));
@@ -177,6 +202,7 @@ public partial class MainWindow : FluentWindow
                 gear = number;
             }
         }
+        UpdateTestTiles(s);
         GearText.Text = gear == 0 ? "N" : gear == ReverseButton ? "R" : (gear - FirstGearButton + 1).ToString(CultureInfo.InvariantCulture);
     }
 
@@ -300,6 +326,135 @@ public partial class MainWindow : FluentWindow
         }
         Log($"{what} iptal edildi; hiçbir şey gönderilmedi.");
         return false;
+    }
+
+    // ---- Button test ------------------------------------------------------------------------
+
+    private void CreateTestTiles()
+    {
+        foreach (var (key, label, row, column) in TestLayout)
+        {
+            var tile = CreateTestTile(key, label);
+            Grid.SetRow(tile, row);
+            if (column < 0)
+            {
+                Grid.SetColumn(tile, 1);
+                Grid.SetColumnSpan(tile, 2);
+                tile.HorizontalAlignment = HorizontalAlignment.Center;
+            }
+            else
+            {
+                Grid.SetColumn(tile, column);
+            }
+            TestGrid.Children.Add(tile);
+        }
+        foreach (var (key, label) in TestGears)
+        {
+            var tile = CreateTestTile(key, label);
+            tile.Width = 76;
+            TestGearPanel.Children.Add(tile);
+        }
+        UpdateTestMappings();
+        UpdateTestSummary();
+    }
+
+    private FrameworkElement CreateTestTile(byte key, string label)
+    {
+        var name = new TextBlock { Text = label, FontSize = 16, HorizontalAlignment = HorizontalAlignment.Center };
+        var box = new Border
+        {
+            Height = 34,
+            CornerRadius = new CornerRadius(17),
+            BorderThickness = new Thickness(1.5),
+            BorderBrush = (Brush)FindResource("RimEdgeBrush"),
+            Background = Brushes.Transparent,
+            Child = name,
+            Padding = new Thickness(0, 5, 0, 0),
+        };
+        var mapping = new TextBlock
+        {
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Foreground = (Brush)FindResource("MutedTextBrush"),
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        _testTiles.Add(new TestTile(key, box, mapping));
+        var panel = new StackPanel { Width = 132, Margin = new Thickness(6, 8, 6, 8), ToolTip = WheelKeyMap.NameOf(key) };
+        panel.Children.Add(box);
+        panel.Children.Add(mapping);
+        return panel;
+    }
+
+    /// <summary>The code a physical key sends: from the read map, or the key itself before a read.</summary>
+    private byte TargetOf(byte key) => _keyMap?.TargetOf(key) ?? key;
+
+    private void UpdateTestMappings()
+    {
+        foreach (var tile in _testTiles)
+        {
+            byte target = TargetOf(tile.Key);
+            string text = WheelKeyMap.NameOf(target);
+            if (!WheelKeyMap.IsDetectable(target))
+            {
+                // Keyboard/mouse targets don't arrive through DirectInput, so this test can't see them.
+                text += " (test edilemez)";
+            }
+            tile.Mapping.Text = _keyMap is null ? text : (target == tile.Key ? text : $"→ {text}");
+            tile.Box.Opacity = !WheelKeyMap.IsDetectable(target) ? 0.45 : 1;
+        }
+    }
+
+    private void UpdateTestTiles(WheelInputSnapshot s)
+    {
+        var accent = (Brush)FindResource("RacingAccentBrush");
+        var ok = (Brush)FindResource("OkBrush");
+        var edge = (Brush)FindResource("RimEdgeBrush");
+        bool changed = false;
+        foreach (var tile in _testTiles)
+        {
+            bool pressed = WheelKeyMap.IsActive(TargetOf(tile.Key), s.Buttons, s.Povs) == true;
+            if (pressed && !tile.Seen)
+            {
+                tile.Seen = true;
+                changed = true;
+            }
+            tile.Box.Background = pressed ? accent : Brushes.Transparent;
+            tile.Box.BorderBrush = pressed ? accent : tile.Seen ? ok : edge;
+        }
+        if (changed)
+        {
+            UpdateTestSummary();
+        }
+
+        // Raw readout, so buttons the layout doesn't know (e.g. Share) still show up.
+        if (!s.Buttons.SequenceEqual(_lastButtons))
+        {
+            var down = Enumerable.Range(0, s.Buttons.Length).Where(i => s.Buttons[i]).Select(i => $"B{i + 1}").ToList();
+            if (down.Count > 0)
+            {
+                TestRawText.Text = $"Son basılan DirectInput düğmesi: {string.Join(", ", down)}";
+            }
+            _lastButtons = s.Buttons.ToArray();
+        }
+    }
+
+    private void UpdateTestSummary()
+    {
+        int testable = _testTiles.Count(t => WheelKeyMap.IsDetectable(TargetOf(t.Key)));
+        int seen = _testTiles.Count(t => t.Seen);
+        TestSummaryText.Text = $"{seen} / {testable} tuş çalışırken görüldü.";
+    }
+
+    private void OnResetTest(object sender, RoutedEventArgs e)
+    {
+        foreach (var tile in _testTiles)
+        {
+            tile.Seen = false;
+            tile.Box.BorderBrush = (Brush)FindResource("RimEdgeBrush");
+        }
+        TestRawText.Text = "";
+        UpdateTestSummary();
     }
 
     // ---- Button mapping ---------------------------------------------------------------------
@@ -428,6 +583,7 @@ public partial class MainWindow : FluentWindow
             row++;
         }
         UpdateMapApplyState();
+        UpdateTestMappings();
     }
 
     private void UpdateMapBadge(TextBlock badge, byte key, byte onWheel, byte selected)

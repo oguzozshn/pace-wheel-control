@@ -102,6 +102,13 @@
                         <TextBlock Text="düğme → hedef" Style="{StaticResource SmallLabel}" HorizontalAlignment="Center" />
                     </StackPanel>
                 </Button>
+                <Button Style="{StaticResource HubTile}" Tag="Test" Click="OnOpenPage">
+                    <StackPanel>
+                        <ui:SymbolIcon Symbol="XboxController24" FontSize="34" HorizontalAlignment="Center" />
+                        <TextBlock Text="Tuş testi" HorizontalAlignment="Center" Margin="0,10,0,0" />
+                        <TextBlock Text="bas · çalışıyor mu?" Style="{StaticResource SmallLabel}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource HubTile}" Tag="Log" Click="OnOpenPage">
                     <StackPanel>
                         <ui:SymbolIcon Symbol="DocumentBulletList24" FontSize="34" HorizontalAlignment="Center" />
@@ -130,7 +137,13 @@
                     <RadioButton x:Name="NavMapping" Style="{StaticResource NavItem}" GroupName="Nav" Tag="Mapping" Checked="OnNavChecked" ToolTip="Tuş atama">
                         <StackPanel>
                             <ui:SymbolIcon Symbol="Keyboard24" FontSize="24" HorizontalAlignment="Center" />
-                            <TextBlock Text="Tuşlar" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                            <TextBlock Text="Atama" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavTest" Style="{StaticResource NavItem}" GroupName="Nav" Tag="Test" Checked="OnNavChecked" ToolTip="Tuş testi">
+                        <StackPanel>
+                            <ui:SymbolIcon Symbol="XboxController24" FontSize="24" HorizontalAlignment="Center" />
+                            <TextBlock Text="Test" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0" />
                         </StackPanel>
                     </RadioButton>
                     <RadioButton x:Name="NavLog" Style="{StaticResource NavItem}" GroupName="Nav" Tag="Log" Checked="OnNavChecked" ToolTip="İşlem kaydı">
@@ -207,6 +220,55 @@
                         <ui:Button x:Name="UndoMapButton" Content="Geri al…" Appearance="Secondary"
                                    Icon="{ui:SymbolIcon ArrowUndo24}" IsEnabled="False" Click="OnUndoMap" Margin="10,0,0,0" Padding="20,7" />
                     </StackPanel>
+                </Grid>
+
+                <!-- Page: button test, laid out like the wheel (mobile app's key screen) -->
+                <Grid x:Name="PageTest" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <DockPanel Grid.Row="0" Margin="0,0,0,14">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <ui:Button Content="Haritayı oku" Appearance="Secondary" Icon="{ui:SymbolIcon ArrowDownload24}" Click="OnReadMap" />
+                            <ui:Button Content="Sıfırla" Appearance="Primary" Icon="{ui:SymbolIcon ArrowReset24}" Click="OnResetTest" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Tuş testi" Style="{StaticResource PageTitle}" />
+                            <TextBlock TextWrapping="Wrap" Style="{StaticResource SmallLabel}" FontSize="12"
+                                       Text="Tuşlara tek tek bas: basılan tuş yanar, çalıştığı görülen tuş yeşil kenarlı kalır. Alt satır tuşun şu an neye atandığını gösterir (önce &quot;Haritayı oku&quot;)." />
+                        </StackPanel>
+                    </DockPanel>
+                    <Border Grid.Row="1" Style="{StaticResource Panel}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel HorizontalAlignment="Center">
+                                <Grid x:Name="TestGrid">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="150" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Viewbox Grid.Row="1" Grid.RowSpan="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="12">
+                                        <controls:SteeringWheelView x:Name="TestWheelView" />
+                                    </Viewbox>
+                                </Grid>
+                                <TextBlock Text="VİTES" Style="{StaticResource SectionTitle}" Margin="6,14,0,6" />
+                                <WrapPanel x:Name="TestGearPanel" />
+                                <TextBlock x:Name="TestSummaryText" Style="{StaticResource SmallLabel}" FontSize="12" Margin="6,16,0,0" />
+                                <TextBlock x:Name="TestRawText" Style="{StaticResource SmallLabel}" FontSize="12" Margin="6,4,0,0" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
                 </Grid>
 
                 <!-- Page: operation log -->

@@ -19,6 +19,8 @@ Findings are in [docs/device-notes.md](docs/device-notes.md) and
 - **GUI** (`src/PaceWheel.App`, WPF): live input view (steering, pedals, D-pad, buttons, gear)
   and sliders for rotation angle, FFB strength and centering spring. Every change shows the
   exact bytes and asks for confirmation, saves a backup, reads the result back and can be undone.
+  A **button test** page lays the keys out like the wheel; pressing a key lights it and marks it
+  as working, so dead buttons stand out.
 
 Planned next:
 - Phase 3 (optional): input processing; pedal curves and button mapping may be better done

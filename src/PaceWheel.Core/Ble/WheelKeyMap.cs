@@ -33,6 +33,54 @@ public sealed class WheelKeyMap
     /// <summary>Codes a key can be mapped to. The app's RESET code (0x2E) is deliberately not offered.</summary>
     public static readonly IReadOnlyList<WheelKey> Targets = BuildTargets();
 
+    /// <summary>
+    /// DirectInput button (1-based) each gamepad code arrives as (docs/device-notes.md, input mapping).
+    /// Share and the gear-up/down/handbrake codes were never captured, so they are missing.
+    /// </summary>
+    private static readonly Dictionary<byte, int> DirectInputButtons = new()
+    {
+        [0x0A] = 1, [0x09] = 2, [0x0B] = 3, [0x08] = 4, [0x0C] = 5, [0x0D] = 6, [0x0E] = 7, [0x0F] = 8,
+        [0x00] = 9, [0x03] = 10, [0x01] = 11, [0x02] = 12, [0x10] = 13,
+        [0x1B] = 17, [0x1C] = 18, [0x1D] = 19, [0x1E] = 20, [0x1F] = 21, [0x20] = 22, [0x21] = 23,
+    };
+
+    /// <summary>D-pad codes and the POV angle (hundredths of a degree) they report.</summary>
+    private static readonly Dictionary<byte, int> PovAngles = new() { [0x04] = 0, [0x05] = 9000, [0x06] = 18000, [0x07] = 27000 };
+
+    /// <summary>The DirectInput button a code shows up as, or null if unknown or not a gamepad button.</summary>
+    public static int? DirectInputButtonOf(byte code) => DirectInputButtons.TryGetValue(code, out int b) ? b : null;
+
+    /// <summary>Whether a code can be seen through DirectInput (a known gamepad button or a D-pad direction).</summary>
+    public static bool IsDetectable(byte code) => DirectInputButtons.ContainsKey(code) || PovAngles.ContainsKey(code);
+
+    /// <summary>
+    /// Whether a code is active in the given DirectInput state. Null when the code can't be seen through
+    /// DirectInput at all (keyboard, mouse, unassigned or never-captured codes).
+    /// </summary>
+    public static bool? IsActive(byte code, bool[] buttons, IReadOnlyList<int> povs)
+    {
+        if (DirectInputButtonOf(code) is int button)
+        {
+            return button <= buttons.Length && buttons[button - 1];
+        }
+        if (PovAngles.TryGetValue(code, out int angle))
+        {
+            if (povs.Count == 0)
+            {
+                return null;
+            }
+            int pov = povs[0];
+            if (pov < 0 || pov >= 36000)
+            {
+                return false;
+            }
+            // Diagonals light both neighbouring directions.
+            int diff = Math.Abs(pov - angle);
+            return Math.Min(diff, 36000 - diff) <= 4500;
+        }
+        return null;
+    }
+
     private readonly Dictionary<byte, byte> _map;
 
     private WheelKeyMap(int mode, Dictionary<byte, byte> map)
